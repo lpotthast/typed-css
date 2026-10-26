@@ -100,7 +100,7 @@ impl Number {
 
     /// Return the number as an `f64`.
     #[must_use]
-    pub const fn get(self) -> f64 {
+    pub const fn value(self) -> f64 {
         self.0
     }
 }
@@ -115,7 +115,7 @@ impl TryFrom<f64> for Number {
 
 impl From<Number> for f64 {
     fn from(value: Number) -> Self {
-        value.get()
+        value.value()
     }
 }
 
@@ -131,7 +131,8 @@ const SCALED_LIMIT: f64 = 1_125_899_906_842_624.0;
 
 impl ToCss for Number {
     /// Write the number as `f64`'s `Display` does, which is the shortest decimal that reads back
-    /// as the same `f64`. `Display` never uses an exponent.
+    /// as the same `f64`. `Display` never uses an exponent. Unlike `Display`, `-0.0` is written as
+    /// `0`.
     ///
     /// Most CSS numbers are whole numbers or have a few digits after the decimal point, such as
     /// `16` or `1.5`. Integer arithmetic writes those about twice as fast as the shortest-decimal
@@ -139,8 +140,9 @@ impl ToCss for Number {
     fn to_css<W: fmt::Write>(&self, dest: &mut W) -> fmt::Result {
         let value = self.0;
         if value == 0.0 {
-            // `Display` keeps the sign of `-0.0`.
-            return dest.write_str(if value.is_sign_negative() { "-0" } else { "0" });
+            // `-0.0` is written as `0`, because it compares equal to `0.0`. `Display` would keep
+            // the sign.
+            return dest.write_str("0");
         }
         let magnitude = value.abs();
         let decimal = if value.fract() == 0.0 && magnitude < EXACT_INTEGER_LIMIT {
@@ -256,12 +258,15 @@ impl NonNegativeNumber {
     ///
     /// # Panics
     ///
-    /// Panics if `value` is negative, `NaN`, or infinite. Use [`NonNegativeNumber::try_new`] for
-    /// runtime-derived values.
+    /// Panics, or fails const evaluation, if `value` is negative, `NaN`, or infinite. Use
+    /// [`NonNegativeNumber::try_new`] for runtime-derived values.
     #[track_caller]
     #[must_use]
-    pub fn new(value: impl Into<f64>) -> Self {
-        Self::try_new(value).unwrap_or_else(|error| panic!("{error}"))
+    pub const fn new(value: f64) -> Self {
+        match Self::try_new(value) {
+            Ok(number) => number,
+            Err(_) => panic!("CSS number must be finite and non-negative"),
+        }
     }
 
     /// Attempt to create a non-negative number.
@@ -269,19 +274,22 @@ impl NonNegativeNumber {
     /// # Errors
     ///
     /// Returns an error if `value` is negative, `NaN`, or infinite.
-    pub fn try_new(value: impl Into<f64>) -> Result<Self, InvalidNumber> {
-        Self::try_for(value.into(), "number")
+    pub const fn try_new(value: f64) -> Result<Self, InvalidNumber> {
+        Self::try_for(value, "number")
     }
 
     /// Attempt to create a non-negative number. An error names the number as `context`.
-    pub(crate) fn try_for(value: f64, context: &'static str) -> Result<Self, InvalidNumber> {
-        try_non_negative(value, context).map(Self)
+    pub(crate) const fn try_for(value: f64, context: &'static str) -> Result<Self, InvalidNumber> {
+        match try_non_negative(value, context) {
+            Ok(number) => Ok(Self(number)),
+            Err(error) => Err(error),
+        }
     }
 
     /// Return the number as an `f64`.
     #[must_use]
-    pub const fn get(self) -> f64 {
-        self.0.get()
+    pub const fn value(self) -> f64 {
+        self.0.value()
     }
 }
 
@@ -318,12 +326,15 @@ impl UnitInterval {
     ///
     /// # Panics
     ///
-    /// Panics if `value` is outside the range or not finite. Use [`UnitInterval::try_new`] for
-    /// runtime-derived values.
+    /// Panics, or fails const evaluation, if `value` is outside the range or not finite. Use
+    /// [`UnitInterval::try_new`] for runtime-derived values.
     #[track_caller]
     #[must_use]
-    pub fn new(value: impl Into<f64>) -> Self {
-        Self::try_new(value).unwrap_or_else(|error| panic!("{error}"))
+    pub const fn new(value: f64) -> Self {
+        match Self::try_new(value) {
+            Ok(number) => number,
+            Err(_) => panic!("CSS unit interval must be finite and in range [0, 1]"),
+        }
     }
 
     /// Attempt to create a number from `0` to `1`.
@@ -331,14 +342,17 @@ impl UnitInterval {
     /// # Errors
     ///
     /// Returns an error if `value` is outside the range or not finite.
-    pub fn try_new(value: impl Into<f64>) -> Result<Self, InvalidNumber> {
-        try_in_range(value.into(), "unit interval", 0.0, 1.0).map(Self)
+    pub const fn try_new(value: f64) -> Result<Self, InvalidNumber> {
+        match try_in_range(value, "unit interval", 0.0, 1.0) {
+            Ok(number) => Ok(Self(number)),
+            Err(error) => Err(error),
+        }
     }
 
     /// Return the number as an `f64`.
     #[must_use]
-    pub const fn get(self) -> f64 {
-        self.0.get()
+    pub const fn value(self) -> f64 {
+        self.0.value()
     }
 }
 
@@ -362,16 +376,19 @@ impl ToCss for UnitInterval {
 pub struct PercentageChannel(pub(crate) Number);
 
 impl PercentageChannel {
-    /// Create a percentage from `0%` to `100%`. `PercentageChannel::new(50)` is `50%`.
+    /// Create a percentage from `0%` to `100%`. `PercentageChannel::new(50.0)` is `50%`.
     ///
     /// # Panics
     ///
-    /// Panics if `value` is outside the range or not finite. Use [`PercentageChannel::try_new`]
-    /// for runtime-derived values.
+    /// Panics, or fails const evaluation, if `value` is outside the range or not finite. Use
+    /// [`PercentageChannel::try_new`] for runtime-derived values.
     #[track_caller]
     #[must_use]
-    pub fn new(value: impl Into<f64>) -> Self {
-        Self::try_new(value).unwrap_or_else(|error| panic!("{error}"))
+    pub const fn new(value: f64) -> Self {
+        match Self::try_new(value) {
+            Ok(percentage) => percentage,
+            Err(_) => panic!("CSS percentage channel must be finite and in range [0, 100]"),
+        }
     }
 
     /// Attempt to create a percentage from `0%` to `100%`.
@@ -379,14 +396,17 @@ impl PercentageChannel {
     /// # Errors
     ///
     /// Returns an error if `value` is outside the range or not finite.
-    pub fn try_new(value: impl Into<f64>) -> Result<Self, InvalidNumber> {
-        try_in_range(value.into(), "percentage channel", 0.0, 100.0).map(Self)
+    pub const fn try_new(value: f64) -> Result<Self, InvalidNumber> {
+        match try_in_range(value, "percentage channel", 0.0, 100.0) {
+            Ok(number) => Ok(Self(number)),
+            Err(error) => Err(error),
+        }
     }
 
     /// Return the number of percent.
     #[must_use]
-    pub const fn get(self) -> f64 {
-        self.0.get()
+    pub const fn value(self) -> f64 {
+        self.0.value()
     }
 }
 
@@ -490,14 +510,17 @@ pub(crate) fn assert_finite(value: f64, context: &'static str) -> Number {
 }
 
 #[inline]
-pub(crate) fn try_in_range(
+pub(crate) const fn try_in_range(
     value: f64,
     context: &'static str,
     min: f64,
     max: f64,
 ) -> Result<Number, InvalidNumber> {
-    let number = try_finite(value, context)?;
-    if (min..=max).contains(&value) {
+    let number = match try_finite(value, context) {
+        Ok(number) => number,
+        Err(error) => return Err(error),
+    };
+    if min <= value && value <= max {
         Ok(number)
     } else {
         Err(InvalidNumber::OutOfRange {
@@ -510,8 +533,14 @@ pub(crate) fn try_in_range(
 }
 
 #[inline]
-pub(crate) fn try_non_negative(value: f64, context: &'static str) -> Result<Number, InvalidNumber> {
-    let number = try_finite(value, context)?;
+pub(crate) const fn try_non_negative(
+    value: f64,
+    context: &'static str,
+) -> Result<Number, InvalidNumber> {
+    let number = match try_finite(value, context) {
+        Ok(number) => number,
+        Err(error) => return Err(error),
+    };
     if value >= 0.0 {
         Ok(number)
     } else {
@@ -583,7 +612,7 @@ macro_rules! dimension {
             /// Return the number without its unit.
             #[must_use]
             pub const fn value(self) -> f64 {
-                self.number.get()
+                self.number.value()
             }
 
             /// Return the unit as CSS text, such as `px` or `deg`.
@@ -655,7 +684,7 @@ macro_rules! scaling_operators {
             /// Panics if `factor` is `NaN` or infinite, or if the result is not finite.
             #[track_caller]
             fn mul(self, factor: F) -> Self {
-                let factor = $crate::number::assert_finite(factor.into(), "factor").get();
+                let factor = $crate::number::assert_finite(factor.into(), "factor").value();
                 self.map_value(|number| $crate::number::round_noise(number * factor))
             }
         }
@@ -670,7 +699,7 @@ macro_rules! scaling_operators {
             /// Panics if `divisor` is zero, `NaN`, or infinite, or if the result is not finite.
             #[track_caller]
             fn div(self, divisor: F) -> Self {
-                let divisor = $crate::number::assert_finite(divisor.into(), "divisor").get();
+                let divisor = $crate::number::assert_finite(divisor.into(), "divisor").value();
                 assert!(divisor != 0.0, "CSS divisor must not be zero");
                 self.map_value(|number| $crate::number::round_noise(number / divisor))
             }
@@ -856,8 +885,16 @@ mod tests {
             .chain(random_bits(100_000).map(f64::from_bits))
             .filter(|value| value.is_finite())
             .map(|value| (value, Number::new(value).to_css_string()))
-            .filter(|(value, css)| *css != value.to_string())
+            // `Display` writes `-0.0` as `-0`, and `Number` writes `0`.
+            .filter(|(value, css)| *css != (*value + 0.0).to_string())
             .collect();
         assert_that!(mismatches).is_empty();
+    }
+
+    #[test]
+    fn negative_zero_is_written_as_zero() {
+        assert_that!(Number::new(-0.0).to_css_string()).is_equal_to("0");
+        assert_that!((-crate::px(0)).to_css_string()).is_equal_to("0px");
+        assert_that!((crate::px(-3) * std::hint::black_box(0)).to_css_string()).is_equal_to("0px");
     }
 }

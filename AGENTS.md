@@ -79,7 +79,12 @@ to the public API by accident.
 
 - Constructors reject invalid numbers, such as `NaN`, infinity, or a value outside the allowed range, before the value
   can reach CSS text. A convenience constructor such as `px` panics. Its fallible counterpart, such as
-  `Length::try_px`, returns an error for runtime-derived input.
+  `Length::try_px`, returns an error for runtime-derived input. Every constructor that can panic has a fallible
+  counterpart, usually with the same name and a `try_` prefix. Its `# Panics` documentation names that counterpart.
+- The constructors of the numeric types in `number`, `percentage`, `length`, `angle`, and `time` are `const fn`s that
+  take an `f64`, so they work in constants. The convenience functions, such as `px`, and the constructors of property
+  values, such as `Opacity::new`, take `impl Into<f64>`. Each numeric type returns its number with `value()`.
+- `Number` writes every zero as `0`, so `-0.0` and `0.0` have the same CSS text and compare equal.
 - `Length`, `Percentage`, and `LengthPercentage` model `<length>`, `<percentage>`, and `<length-percentage>`. A grammar
   that also accepts `auto`, such as `margin`, uses `LengthPercentageAuto`. A grammar that accepts only non-negative
   values, such as `padding`, uses `NonNegativeLengthPercentage`. It writes a negative length or percentage inside
@@ -113,8 +118,9 @@ to the public API by accident.
   Typed values do not implement Leptos' `IntoStyleValue`. Implementing `ToCss` must never make a type declarable.
 - Every public enum with variants is `#[non_exhaustive]`, so a `match` in examples or downstream code needs a wildcard
   arm. The empty `GlobalKeywordsOnly` has no variants to add.
-- Shorthands with two values, such as `Gap`, `Overflow`, and `PaddingAxis`, have `both` for one repeated value, `new`
-  for two values, and a `with_` method for each value.
+- Shorthands with two values, such as `Gap`, `Overflow`, `PaddingAxis`, `FlexFlow`, and `GridLineRange`, have `new`
+  for two values and a `with_` method for each value. Those whose values share one type also have `both` for one
+  repeated value. A list value, such as `GridTemplate` or `GridAutoTracks`, is created with `new` and `try_new`.
 - Every public item has a doc comment. `missing_docs = "warn"` becomes an error in the warning-denied Rustdoc job.
 - Clippy's `pedantic` group is denied, and `Cargo.toml` allows no lint. Satisfy a lint where it fires. If a lint is
   wrong in one place, use `#[expect(lint, reason = "...")]` on the smallest item and say why.

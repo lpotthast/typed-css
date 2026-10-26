@@ -8,7 +8,7 @@ use crate::length_percentage::length_percentage_sources;
 use crate::property::definition::property_keywords;
 use crate::{
     Angle, InvalidNumber, Length, LengthPercentage, Number,
-    number::{assert_finite, try_non_negative},
+    number::{try_finite, try_non_negative},
     serialization::ToCss,
 };
 
@@ -78,10 +78,28 @@ enum Function {
     Perspective(Length),
 }
 
-/// Convert a factor into a [`Number`], panicking with a clear message if it is not finite.
+/// Attempt to convert a transform argument into a [`Number`].
+fn try_factor(value: impl Into<f64>) -> Result<Number, InvalidNumber> {
+    try_finite(value.into(), "transform factor")
+}
+
+/// Attempt to convert every transform argument of an array into a [`Number`].
+fn try_factors<const N: usize>(values: [f64; N]) -> Result<[Number; N], InvalidNumber> {
+    let mut numbers = [Number::new(0.0); N];
+    for (number, value) in numbers.iter_mut().zip(values) {
+        *number = try_factor(value)?;
+    }
+    Ok(numbers)
+}
+
+/// Unwrap the result of a fallible constructor, panicking with the error message.
 #[track_caller]
-fn factor(value: impl Into<f64>) -> Number {
-    assert_finite(value.into(), "transform factor")
+fn expect_valid<T>(result: Result<T, InvalidNumber>) -> T {
+    // A `match` instead of `unwrap_or_else`, because a closure would hide the caller's location.
+    match result {
+        Ok(value) => value,
+        Err(error) => panic!("{error}"),
+    }
 }
 
 impl TransformFunction {
@@ -123,55 +141,113 @@ impl TransformFunction {
     ///
     /// # Panics
     ///
-    /// Panics if a factor is not finite.
+    /// Panics if a factor is not finite. Use [`TransformFunction::try_scale`] for
+    /// runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn scale(x: impl Into<f64>, y: impl Into<f64>) -> Self {
-        Self(Function::Scale(factor(x), factor(y)))
+        expect_valid(Self::try_scale(x, y))
+    }
+
+    /// Attempt to create `scale(x, y)`. A factor of `1` keeps the size.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a factor is not finite.
+    pub fn try_scale(x: impl Into<f64>, y: impl Into<f64>) -> Result<Self, InvalidNumber> {
+        Ok(Self(Function::Scale(try_factor(x)?, try_factor(y)?)))
     }
 
     /// Create `scaleX(x)`.
     ///
     /// # Panics
     ///
-    /// Panics if `x` is not finite.
+    /// Panics if `x` is not finite. Use [`TransformFunction::try_scale_x`] for
+    /// runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn scale_x(x: impl Into<f64>) -> Self {
-        Self(Function::ScaleX(factor(x)))
+        expect_valid(Self::try_scale_x(x))
+    }
+
+    /// Attempt to create `scaleX(x)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `x` is not finite.
+    pub fn try_scale_x(x: impl Into<f64>) -> Result<Self, InvalidNumber> {
+        Ok(Self(Function::ScaleX(try_factor(x)?)))
     }
 
     /// Create `scaleY(y)`.
     ///
     /// # Panics
     ///
-    /// Panics if `y` is not finite.
+    /// Panics if `y` is not finite. Use [`TransformFunction::try_scale_y`] for
+    /// runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn scale_y(y: impl Into<f64>) -> Self {
-        Self(Function::ScaleY(factor(y)))
+        expect_valid(Self::try_scale_y(y))
+    }
+
+    /// Attempt to create `scaleY(y)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `y` is not finite.
+    pub fn try_scale_y(y: impl Into<f64>) -> Result<Self, InvalidNumber> {
+        Ok(Self(Function::ScaleY(try_factor(y)?)))
     }
 
     /// Create `scaleZ(z)`.
     ///
     /// # Panics
     ///
-    /// Panics if `z` is not finite.
+    /// Panics if `z` is not finite. Use [`TransformFunction::try_scale_z`] for
+    /// runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn scale_z(z: impl Into<f64>) -> Self {
-        Self(Function::ScaleZ(factor(z)))
+        expect_valid(Self::try_scale_z(z))
+    }
+
+    /// Attempt to create `scaleZ(z)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `z` is not finite.
+    pub fn try_scale_z(z: impl Into<f64>) -> Result<Self, InvalidNumber> {
+        Ok(Self(Function::ScaleZ(try_factor(z)?)))
     }
 
     /// Create `scale3d(x, y, z)`.
     ///
     /// # Panics
     ///
-    /// Panics if a factor is not finite.
+    /// Panics if a factor is not finite. Use [`TransformFunction::try_scale_3d`] for
+    /// runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn scale_3d(x: impl Into<f64>, y: impl Into<f64>, z: impl Into<f64>) -> Self {
-        Self(Function::Scale3d(factor(x), factor(y), factor(z)))
+        expect_valid(Self::try_scale_3d(x, y, z))
+    }
+
+    /// Attempt to create `scale3d(x, y, z)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a factor is not finite.
+    pub fn try_scale_3d(
+        x: impl Into<f64>,
+        y: impl Into<f64>,
+        z: impl Into<f64>,
+    ) -> Result<Self, InvalidNumber> {
+        Ok(Self(Function::Scale3d(
+            try_factor(x)?,
+            try_factor(y)?,
+            try_factor(z)?,
+        )))
     }
 
     /// Create `rotate(angle)`, a rotation in the plane of the screen.
@@ -203,7 +279,8 @@ impl TransformFunction {
     ///
     /// # Panics
     ///
-    /// Panics if a coordinate is not finite.
+    /// Panics if a coordinate is not finite. Use [`TransformFunction::try_rotate_3d`] for
+    /// runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn rotate_3d(
@@ -212,7 +289,27 @@ impl TransformFunction {
         z: impl Into<f64>,
         angle: Angle,
     ) -> Self {
-        Self(Function::Rotate3d(factor(x), factor(y), factor(z), angle))
+        expect_valid(Self::try_rotate_3d(x, y, z, angle))
+    }
+
+    /// Attempt to create `rotate3d(x, y, z, angle)`, a rotation around the axis from the origin to
+    /// `(x, y, z)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a coordinate is not finite.
+    pub fn try_rotate_3d(
+        x: impl Into<f64>,
+        y: impl Into<f64>,
+        z: impl Into<f64>,
+        angle: Angle,
+    ) -> Result<Self, InvalidNumber> {
+        Ok(Self(Function::Rotate3d(
+            try_factor(x)?,
+            try_factor(y)?,
+            try_factor(z)?,
+            angle,
+        )))
     }
 
     /// Create `skew(x, y)`.
@@ -238,11 +335,22 @@ impl TransformFunction {
     ///
     /// # Panics
     ///
-    /// Panics if a number is not finite.
+    /// Panics if a number is not finite. Use [`TransformFunction::try_matrix`] for
+    /// runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn matrix(values: [f64; 6]) -> Self {
-        Self(Function::Matrix(values.map(factor)))
+        expect_valid(Self::try_matrix(values))
+    }
+
+    /// Attempt to create `matrix(a, b, c, d, e, f)`, the 2D matrix with the columns `(a, b)`, `(c, d)`, and
+    /// the translation `(e, f)` in pixels.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a number is not finite.
+    pub fn try_matrix(values: [f64; 6]) -> Result<Self, InvalidNumber> {
+        Ok(Self(Function::Matrix(try_factors(values)?)))
     }
 
     /// Create `matrix3d(..)` from a 4×4 matrix in column-major order. The last column holds the
@@ -250,11 +358,22 @@ impl TransformFunction {
     ///
     /// # Panics
     ///
-    /// Panics if a number is not finite.
+    /// Panics if a number is not finite. Use [`TransformFunction::try_matrix_3d`] for
+    /// runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn matrix_3d(values: [f64; 16]) -> Self {
-        Self(Function::Matrix3d(values.map(factor)))
+        expect_valid(Self::try_matrix_3d(values))
+    }
+
+    /// Attempt to create `matrix3d(..)` from a 4×4 matrix in column-major order. The last column holds the
+    /// translation in pixels.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a number is not finite.
+    pub fn try_matrix_3d(values: [f64; 16]) -> Result<Self, InvalidNumber> {
+        Ok(Self(Function::Matrix3d(try_factors(values)?)))
     }
 
     /// Create `perspective(distance)`. A smaller distance gives a stronger perspective.
@@ -266,7 +385,7 @@ impl TransformFunction {
     #[track_caller]
     #[must_use]
     pub fn perspective(distance: Length) -> Self {
-        Self::try_perspective(distance).unwrap_or_else(|error| panic!("{error}"))
+        expect_valid(Self::try_perspective(distance))
     }
 
     /// Attempt to create `perspective(distance)`.
@@ -468,11 +587,31 @@ impl Rotate {
     ///
     /// # Panics
     ///
-    /// Panics if `x`, `y`, or `z` is not finite.
+    /// Panics if `x`, `y`, or `z` is not finite. Use [`Rotate::try_vector`] for runtime-derived
+    /// values.
     #[track_caller]
     #[must_use]
     pub fn vector(x: impl Into<f64>, y: impl Into<f64>, z: impl Into<f64>, angle: Angle) -> Self {
-        Self::Vector(factor(x), factor(y), factor(z), angle)
+        expect_valid(Self::try_vector(x, y, z, angle))
+    }
+
+    /// Attempt to rotate around the axis that points from the origin to `(x, y, z)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `x`, `y`, or `z` is not finite.
+    pub fn try_vector(
+        x: impl Into<f64>,
+        y: impl Into<f64>,
+        z: impl Into<f64>,
+        angle: Angle,
+    ) -> Result<Self, InvalidNumber> {
+        Ok(Self::Vector(
+            try_factor(x)?,
+            try_factor(y)?,
+            try_factor(z)?,
+            angle,
+        ))
     }
 }
 
@@ -531,33 +670,65 @@ impl Scale {
     ///
     /// # Panics
     ///
-    /// Panics if `value` is not finite.
+    /// Panics if `value` is not finite. Use [`Scale::try_uniform`] for runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn uniform(value: impl Into<f64>) -> Self {
-        Self::Uniform(factor(value))
+        expect_valid(Self::try_uniform(value))
+    }
+
+    /// Attempt to use one factor for both axes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `value` is not finite.
+    pub fn try_uniform(value: impl Into<f64>) -> Result<Self, InvalidNumber> {
+        Ok(Self::Uniform(try_factor(value)?))
     }
 
     /// Use separate horizontal and vertical factors.
     ///
     /// # Panics
     ///
-    /// Panics if `x` or `y` is not finite.
+    /// Panics if `x` or `y` is not finite. Use [`Scale::try_xy`] for runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn xy(x: impl Into<f64>, y: impl Into<f64>) -> Self {
-        Self::XY(factor(x), factor(y))
+        expect_valid(Self::try_xy(x, y))
+    }
+
+    /// Attempt to use separate horizontal and vertical factors.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `x` or `y` is not finite.
+    pub fn try_xy(x: impl Into<f64>, y: impl Into<f64>) -> Result<Self, InvalidNumber> {
+        Ok(Self::XY(try_factor(x)?, try_factor(y)?))
     }
 
     /// Use separate horizontal, vertical, and depth factors.
     ///
     /// # Panics
     ///
-    /// Panics if `x`, `y`, or `z` is not finite.
+    /// Panics if `x`, `y`, or `z` is not finite. Use [`Scale::try_xyz`] for runtime-derived
+    /// values.
     #[track_caller]
     #[must_use]
     pub fn xyz(x: impl Into<f64>, y: impl Into<f64>, z: impl Into<f64>) -> Self {
-        Self::XYZ(factor(x), factor(y), factor(z))
+        expect_valid(Self::try_xyz(x, y, z))
+    }
+
+    /// Attempt to use separate horizontal, vertical, and depth factors.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `x`, `y`, or `z` is not finite.
+    pub fn try_xyz(
+        x: impl Into<f64>,
+        y: impl Into<f64>,
+        z: impl Into<f64>,
+    ) -> Result<Self, InvalidNumber> {
+        Ok(Self::XYZ(try_factor(x)?, try_factor(y)?, try_factor(z)?))
     }
 }
 

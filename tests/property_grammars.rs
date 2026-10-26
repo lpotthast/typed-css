@@ -100,12 +100,14 @@ fn font_weights_accept_keywords_and_numbers_in_range() {
     assert_that!(FontWeight::new(450)).has_display_value("450");
     assert_that!(FontWeightNumber::try_new(0)).is_err();
     assert_that!(FontWeightNumber::try_new(1000.5)).is_err();
-    assert_that!(FontWeightNumber::try_new(1).unwrap().get()).is_equal_to(1.0);
+    assert_that!(FontWeightNumber::try_new(1).unwrap().value()).is_equal_to(1.0);
 }
 
 #[test]
 fn font_style_and_oblique_angles_are_checked() {
     assert_that!(FontStyle::Italic).has_display_value("italic");
+    assert_that!(FontStyle::Left).has_display_value("left");
+    assert_that!(FontStyle::Right).has_display_value("right");
     assert_that!(FontStyle::Oblique(None)).has_display_value("oblique");
     assert_that!(FontStyle::Oblique(Some(ObliqueAngle::new(deg(-10)))))
         .has_display_value("oblique -10deg");
@@ -171,6 +173,9 @@ fn flex_grammars_serialize() {
     assert_that!(FlexFlow::wrap(FlexWrap::Wrap).with_direction(FlexDirection::Column))
         .has_display_value("column wrap");
     assert_that!(FlexFlow::direction(FlexDirection::Row)).has_display_value("row");
+    assert_that!(FlexFlow::new(FlexDirection::Column, FlexWrap::Wrap))
+        .has_display_value("column wrap");
+    assert_that!(FlexFlow::new(FlexDirection::Row, FlexWrap::Nowrap)).has_display_value("row");
     assert_that!(FlexBasis::Content).has_display_value("content");
     assert_that!(FlexBasis::from(Size::Auto)).has_display_value("auto");
     assert_that!(Flex::none()).has_display_value("none");
@@ -210,7 +215,7 @@ fn alignment_grammars_serialize_positions_and_overflow_safety() {
 
 #[test]
 fn grid_track_lists_serialize() {
-    let columns = GridTemplate::tracks([
+    let columns = GridTemplate::new([
         GridTrack::from(px(200)),
         GridRepeat::count(2, [fr(1)]).into(),
         TrackSize::fit_content(px(300)).into(),
@@ -229,19 +234,19 @@ fn grid_track_lists_serialize() {
 fn grid_track_lists_enforce_the_auto_repeat_rules() {
     let auto_fit = || GridRepeat::auto_fit([TrackSize::minmax(px(160), fr(1))]);
 
-    assert_that!(GridTemplate::try_tracks([
+    assert_that!(GridTemplate::try_new([
         GridTrack::from(px(10)),
         auto_fit().into()
     ]))
     .is_ok();
-    assert_that!(GridTemplate::try_tracks([
+    assert_that!(GridTemplate::try_new([
         GridTrack::from(fr(1)),
         auto_fit().into()
     ]))
     .is_equal_to(Err(InvalidGridTracks::AutoRepeatRequiresFixedSizes));
-    assert_that!(GridTemplate::try_tracks([auto_fit(), auto_fit()]))
+    assert_that!(GridTemplate::try_new([auto_fit(), auto_fit()]))
         .is_equal_to(Err(InvalidGridTracks::MultipleAutoRepeats));
-    assert_that!(GridTemplate::try_tracks(Vec::<GridTrack>::new()))
+    assert_that!(GridTemplate::try_new(Vec::<GridTrack>::new()))
         .is_equal_to(Err(InvalidGridTracks::Empty));
     assert_that!(GridRepeat::try_count(0, [fr(1)]))
         .is_equal_to(Err(InvalidGridTracks::ZeroRepeatCount));
@@ -254,8 +259,8 @@ fn grid_track_lists_enforce_the_auto_repeat_rules() {
 
 #[test]
 fn grid_lines_serialize_and_reject_zero() {
-    assert_that!(GridLineRange::new(GridLine::line(-1))).has_display_value("-1");
-    assert_that!(GridLineRange::new(GridLine::line(2)).to(GridLine::span(3)))
+    assert_that!(GridLineRange::from(GridLine::line(-1))).has_display_value("-1");
+    assert_that!(GridLineRange::new(GridLine::line(2), GridLine::span(3)))
         .has_display_value("2 / span 3");
     assert_that!(GridLine::Auto).has_display_value("auto");
     assert_that!(GridLine::try_line(0)).is_equal_to(Err(InvalidGridLine));
@@ -668,6 +673,44 @@ fn transform_properties_have_constructors_for_every_form() {
 }
 
 #[test]
+fn fallible_transform_constructors_reject_non_finite_numbers() {
+    assert_that!(TransformFunction::try_scale(2, f64::NAN)).is_err();
+    assert_that!(TransformFunction::try_scale_x(f64::INFINITY)).is_err();
+    assert_that!(TransformFunction::try_scale_y(f64::NAN)).is_err();
+    assert_that!(TransformFunction::try_scale_z(f64::NAN)).is_err();
+    assert_that!(TransformFunction::try_scale_3d(1, 1, f64::NAN)).is_err();
+    assert_that!(TransformFunction::try_rotate_3d(f64::NAN, 0, 0, deg(1))).is_err();
+    assert_that!(TransformFunction::try_matrix([
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        f64::NAN,
+        0.0
+    ]))
+    .is_err();
+    let mut identity = [0.0; 16];
+    identity[15] = f64::INFINITY;
+    assert_that!(TransformFunction::try_matrix_3d(identity)).is_err();
+    assert_that!(Rotate::try_vector(0, f64::NAN, 1, deg(1))).is_err();
+    assert_that!(Scale::try_uniform(f64::NAN)).is_err();
+    assert_that!(Scale::try_xy(1, f64::NAN)).is_err();
+    assert_that!(Scale::try_xyz(1, 1, f64::INFINITY)).is_err();
+
+    assert_that!(TransformFunction::try_scale(2, 3).unwrap()).has_display_value("scale(2, 3)");
+    assert_that!(TransformFunction::try_matrix([1.0, 0.0, 0.0, 1.0, 5.0, 0.0]).unwrap())
+        .has_display_value("matrix(1, 0, 0, 1, 5, 0)");
+    assert_that!(Scale::try_xy(2, 0.5).unwrap()).has_display_value("2 0.5");
+}
+
+#[test]
+fn display_writes_multi_keyword_values_in_the_shortest_form() {
+    assert_that!(Display::InlineListItem).has_display_value("inline list-item");
+    assert_that!(Display::FlowRootListItem).has_display_value("flow-root list-item");
+    assert_that!(Display::InlineFlowRootListItem).has_display_value("inline flow-root list-item");
+}
+
+#[test]
 fn non_negative_custom_properties_work_in_every_non_negative_grammar() {
     use typed_css::property::{BORDER_RADIUS, FONT_SIZE, GAP, SCALE, WIDTH};
 
@@ -784,7 +827,7 @@ fn values_with_the_same_css_are_equal() {
     let reference: DeclarationValue<LengthPercentage> = var(&SPACE).into();
     let inside: DeclarationValue<LengthPercentage> = LengthPercentage::from(var(&SPACE)).into();
     assert_that!(reference == inside).is_true();
-    assert_that!(GridLine::line(1).to(GridLine::Auto) == GridLineRange::new(GridLine::line(1)))
+    assert_that!(GridLine::line(1).to(GridLine::Auto) == GridLineRange::from(GridLine::line(1)))
         .is_true();
 }
 

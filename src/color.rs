@@ -195,6 +195,115 @@ keyword_enum! {
 }
 
 keyword_enum! {
+    /// A polar color space, which describes a color by a hue angle. Only these spaces accept a
+    /// [`HueInterpolationMethod`].
+    ///
+    /// [CSS Color Level 4 color interpolation](https://www.w3.org/TR/css-color-4/#interpolation-space)
+    pub enum PolarColorSpace {
+        Hsl => "hsl",
+        Hwb => "hwb",
+        Lch => "lch",
+        Oklch => "oklch",
+    }
+}
+
+impl PolarColorSpace {
+    const fn color_space(self) -> ColorSpace {
+        match self {
+            Self::Hsl => ColorSpace::Hsl,
+            Self::Hwb => ColorSpace::Hwb,
+            Self::Lch => ColorSpace::Lch,
+            Self::Oklch => ColorSpace::Oklch,
+        }
+    }
+}
+
+impl From<PolarColorSpace> for ColorSpace {
+    fn from(space: PolarColorSpace) -> Self {
+        space.color_space()
+    }
+}
+
+keyword_enum! {
+    /// The way to interpolate between two hues, which are two points on the color wheel.
+    ///
+    /// [CSS Color Level 4 hue interpolation](https://www.w3.org/TR/css-color-4/#hue-interpolation)
+    pub enum HueInterpolationMethod {
+        /// Take the shorter arc between the hues. This is the default.
+        Shorter => "shorter",
+        /// Take the longer arc between the hues.
+        Longer => "longer",
+        /// Move to larger hue angles.
+        Increasing => "increasing",
+        /// Move to smaller hue angles.
+        Decreasing => "decreasing",
+    }
+}
+
+/// A `<color-interpolation-method>`, which is a color space and, for a polar color space, an
+/// optional way to interpolate hues.
+///
+/// A [`ColorSpace`] and a [`PolarColorSpace`] convert into a method without a hue interpolation.
+///
+/// ```rust
+/// use typed_css::{
+///     ColorInterpolationMethod, HueInterpolationMethod, NamedColor, PolarColorSpace, color_mix,
+/// };
+///
+/// let method = ColorInterpolationMethod::with_hue(
+///     PolarColorSpace::Oklch,
+///     HueInterpolationMethod::Longer,
+/// );
+/// assert_eq!(
+///     color_mix(method, NamedColor::Red, NamedColor::Blue).to_string(),
+///     "color-mix(in oklch longer hue, red, blue)",
+/// );
+/// ```
+///
+/// [CSS Color Level 4 color interpolation](https://www.w3.org/TR/css-color-4/#color-interpolation-method)
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ColorInterpolationMethod {
+    space: ColorSpace,
+    hue: Option<HueInterpolationMethod>,
+}
+
+impl ColorInterpolationMethod {
+    /// Interpolate in a polar color space with the given hue interpolation.
+    #[must_use]
+    pub const fn with_hue(space: PolarColorSpace, hue: HueInterpolationMethod) -> Self {
+        Self {
+            space: space.color_space(),
+            hue: Some(hue),
+        }
+    }
+}
+
+impl From<ColorSpace> for ColorInterpolationMethod {
+    fn from(space: ColorSpace) -> Self {
+        Self { space, hue: None }
+    }
+}
+
+impl From<PolarColorSpace> for ColorInterpolationMethod {
+    fn from(space: PolarColorSpace) -> Self {
+        Self::from(ColorSpace::from(space))
+    }
+}
+
+impl ToCss for ColorInterpolationMethod {
+    fn to_css<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
+        w.write_str("in ")?;
+        self.space.to_css(w)?;
+        if let Some(hue) = self.hue {
+            w.write_char(' ')?;
+            hue.to_css(w)?;
+            w.write_str(" hue")?;
+        }
+        Ok(())
+    }
+}
+
+keyword_enum! {
     /// A system color, which the browser takes from the user's operating system or theme.
     ///
     /// System colors keep a page readable in forced-colors mode, where the browser replaces other
@@ -358,14 +467,14 @@ impl From<Var<Color>> for Color {
 
 declaration_sources!(Color: NamedColor, SystemColor);
 
-/// A `color-mix()` of two colors in one interpolation color space.
+/// A `color-mix()` of two colors with one color interpolation method.
 ///
 /// The optional weight is the percentage of the first color. The second color makes up the rest.
 ///
 /// [CSS Color Level 5 `color-mix()`](https://www.w3.org/TR/css-color-5/#color-mix)
 #[derive(Clone, Debug, PartialEq)]
 pub struct ColorMix {
-    space: ColorSpace,
+    method: ColorInterpolationMethod,
     first: Color,
     first_weight: Option<PercentageChannel>,
     second: Color,
@@ -457,8 +566,8 @@ impl ToCss for Color {
 
 impl ToCss for ColorMix {
     fn to_css<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
-        w.write_str("color-mix(in ")?;
-        self.space.to_css(w)?;
+        w.write_str("color-mix(")?;
+        self.method.to_css(w)?;
         w.write_str(", ")?;
         self.first.to_css(w)?;
         if let Some(weight) = self.first_weight {
@@ -504,7 +613,7 @@ impl Color {
             red,
             green,
             blue,
-            alpha: Some(UnitInterval::try_new(alpha)?),
+            alpha: Some(UnitInterval::try_new(alpha.into())?),
         })
     }
 
@@ -605,16 +714,16 @@ impl Color {
     /// # Errors
     ///
     /// Returns an error if `first_weight` is outside `[0.0, 100.0]`.
-    pub fn try_mix_weighted(
-        space: ColorSpace,
+    pub fn try_color_mix_weighted(
+        method: impl Into<ColorInterpolationMethod>,
         first: impl Into<Color>,
         first_weight: impl Into<f64>,
         second: impl Into<Color>,
     ) -> Result<Self, InvalidNumber> {
         Ok(Self::Mix(Box::new(ColorMix {
-            space,
+            method: method.into(),
             first: first.into(),
-            first_weight: Some(PercentageChannel::try_new(first_weight)?),
+            first_weight: Some(PercentageChannel::try_new(first_weight.into())?),
             second: second.into(),
         })))
     }
@@ -654,7 +763,7 @@ impl Color {
     ///
     /// Returns an error if `alpha` is outside `0..=1` or not finite.
     pub fn try_with_alpha(self, alpha: impl Into<f64>) -> Result<Self, InvalidNumber> {
-        Ok(self.with_unit_alpha(UnitInterval::try_new(alpha)?))
+        Ok(self.with_unit_alpha(UnitInterval::try_new(alpha.into())?))
     }
 
     fn with_unit_alpha(self, alpha: UnitInterval) -> Self {
@@ -715,10 +824,10 @@ impl Color {
             ),
             other @ (Self::Named(_) | Self::System(_) | Self::Mix(_) | Self::Var(_)) => {
                 Self::Mix(Box::new(ColorMix {
-                    space: ColorSpace::Srgb,
+                    method: ColorSpace::Srgb.into(),
                     first: other,
                     first_weight: Some(PercentageChannel(Number::new(round_noise(
-                        alpha.get() * 100.0,
+                        alpha.value() * 100.0,
                     )))),
                     second: Self::Named(NamedColor::Transparent),
                 }))
@@ -841,13 +950,18 @@ pub fn light_dark(light: impl Into<Color>, dark: impl Into<Color>) -> Color {
     Color::LightDark(Box::new(light.into()), Box::new(dark.into()))
 }
 
-/// Mix two colors in equal parts, in the given color space.
+/// Mix two colors in equal parts with the given color interpolation method, such as a
+/// [`ColorSpace`].
 ///
 /// [CSS Color Level 5 `color-mix()`](https://www.w3.org/TR/css-color-5/#color-mix)
 #[must_use]
-pub fn color_mix(space: ColorSpace, first: impl Into<Color>, second: impl Into<Color>) -> Color {
+pub fn color_mix(
+    method: impl Into<ColorInterpolationMethod>,
+    first: impl Into<Color>,
+    second: impl Into<Color>,
+) -> Color {
     Color::Mix(Box::new(ColorMix {
-        space,
+        method: method.into(),
         first: first.into(),
         first_weight: None,
         second: second.into(),
@@ -865,19 +979,19 @@ pub fn color_mix(space: ColorSpace, first: impl Into<Color>, second: impl Into<C
 ///
 /// # Panics
 ///
-/// Panics if `first_weight` is outside `[0.0, 100.0]`. Use [`Color::try_mix_weighted`] for
+/// Panics if `first_weight` is outside `[0.0, 100.0]`. Use [`Color::try_color_mix_weighted`] for
 /// runtime-derived values.
 #[track_caller]
 #[must_use]
 pub fn color_mix_weighted(
-    space: ColorSpace,
+    method: impl Into<ColorInterpolationMethod>,
     first: impl Into<Color>,
     first_weight: impl Into<f64>,
     second: impl Into<Color>,
 ) -> Color {
-    Color::try_mix_weighted(space, first, first_weight, second)
+    Color::try_color_mix_weighted(method, first, first_weight, second)
         .unwrap_or_else(|error| panic!("{error}"))
 }
 
-impl_display!(Color, ColorMix);
+impl_display!(Color, ColorMix, ColorInterpolationMethod);
 impl_checked_value!(Color);

@@ -50,8 +50,9 @@ pub use box_model::{
 };
 pub use checked_value::CheckedValue;
 pub use color::{
-    Color, ColorMix, ColorSpace, NamedColor, SystemColor, color_mix, color_mix_weighted, hex, hsl,
-    hsla, hwb, light_dark, oklab, oklch, rgb, rgba,
+    Color, ColorInterpolationMethod, ColorMix, ColorSpace, HueInterpolationMethod, NamedColor,
+    PolarColorSpace, SystemColor, color_mix, color_mix_weighted, hex, hsl, hsla, hwb, light_dark,
+    oklab, oklch, rgb, rgba,
 };
 pub use color_adjust::{ForcedColorAdjust, PrintColorAdjust};
 pub use custom_property::{

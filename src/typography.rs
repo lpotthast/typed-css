@@ -87,7 +87,8 @@ impl FontWeightNumber {
     ///
     /// # Panics
     ///
-    /// Panics if `weight` is outside `1..=1000` or not finite.
+    /// Panics if `weight` is outside `1..=1000` or not finite. Use [`FontWeightNumber::try_new`]
+    /// for runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn new(weight: impl Into<f64>) -> Self {
@@ -105,8 +106,8 @@ impl FontWeightNumber {
 
     /// Return the numeric weight.
     #[must_use]
-    pub const fn get(self) -> f64 {
-        self.0.get()
+    pub const fn value(self) -> f64 {
+        self.0.value()
     }
 }
 
@@ -126,6 +127,10 @@ pub enum FontStyle {
     Normal,
     /// `italic`, the italic face. The browser slants the upright face if the font has no italic.
     Italic,
+    /// `left`, an italic face with a positive (clockwise) slant.
+    Left,
+    /// `right`, an italic face with a negative (counter-clockwise) slant.
+    Right,
     /// `oblique` with an optional slant. Without an angle, the slant is `14deg`.
     Oblique(Option<ObliqueAngle>),
 }
@@ -149,6 +154,8 @@ impl ToCss for FontStyle {
         match self {
             Self::Normal => w.write_str("normal"),
             Self::Italic => w.write_str("italic"),
+            Self::Left => w.write_str("left"),
+            Self::Right => w.write_str("right"),
             Self::Oblique(None) => w.write_str("oblique"),
             Self::Oblique(Some(angle)) => {
                 w.write_str("oblique ")?;
@@ -179,7 +186,8 @@ impl ObliqueAngle {
     ///
     /// # Panics
     ///
-    /// Panics if `angle` lies outside `-90deg..=90deg`.
+    /// Panics if `angle` lies outside `-90deg..=90deg`. Use [`ObliqueAngle::try_new`] for
+    /// runtime-derived angles.
     #[track_caller]
     #[must_use]
     pub fn new(angle: Angle) -> Self {
@@ -310,7 +318,7 @@ impl LineHeight {
     ///
     /// Returns an error if `factor` is negative or not finite.
     pub fn try_number(factor: impl Into<f64>) -> Result<Self, InvalidNumber> {
-        NonNegativeNumber::try_new(factor).map(Self::Number)
+        NonNegativeNumber::try_new(factor.into()).map(Self::Number)
     }
 }
 
@@ -369,6 +377,8 @@ property_keywords! {
     FontStyle {
         normal: "normal" => FontStyle::Normal,
         italic: "italic" => FontStyle::Italic,
+        left: "left" => FontStyle::Left,
+        right: "right" => FontStyle::Right,
         oblique: "oblique" => FontStyle::Oblique(None),
     }
 }

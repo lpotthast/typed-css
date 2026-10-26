@@ -258,7 +258,8 @@ impl GridRepeat {
     ///
     /// # Panics
     ///
-    /// Panics if `count` is zero or `tracks` is empty.
+    /// Panics if `count` is zero or `tracks` is empty. Use [`GridRepeat::try_count`] for
+    /// runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn count(count: u32, tracks: impl IntoIterator<Item = impl Into<TrackSize>>) -> Self {
@@ -270,6 +271,7 @@ impl GridRepeat {
     /// # Panics
     ///
     /// Panics if `tracks` is empty or contains a track that is not a fixed size, such as `1fr`.
+    /// Use [`GridRepeat::try_new`] for runtime-derived tracks.
     #[track_caller]
     #[must_use]
     pub fn auto_fill(tracks: impl IntoIterator<Item = impl Into<TrackSize>>) -> Self {
@@ -281,6 +283,7 @@ impl GridRepeat {
     /// # Panics
     ///
     /// Panics if `tracks` is empty or contains a track that is not a fixed size, such as `1fr`.
+    /// Use [`GridRepeat::try_new`] for runtime-derived tracks.
     #[track_caller]
     #[must_use]
     pub fn auto_fit(tracks: impl IntoIterator<Item = impl Into<TrackSize>>) -> Self {
@@ -372,10 +375,10 @@ impl ToCss for GridTrack {
 /// ```rust
 /// use typed_css::{GridRepeat, GridTemplate, GridTrack, TrackSize, fr, px};
 ///
-/// let columns = GridTemplate::tracks([GridTrack::from(px(200)), fr(1).into()]);
+/// let columns = GridTemplate::new([GridTrack::from(px(200)), fr(1).into()]);
 /// assert_eq!(columns.to_string(), "200px 1fr");
 ///
-/// let cards = GridTemplate::tracks([GridRepeat::auto_fill([TrackSize::minmax(px(160), fr(1))])]);
+/// let cards = GridTemplate::new([GridRepeat::auto_fill([TrackSize::minmax(px(160), fr(1))])]);
 /// assert_eq!(cards.to_string(), "repeat(auto-fill, minmax(160px, 1fr))");
 /// ```
 ///
@@ -394,11 +397,12 @@ impl GridTemplate {
     ///
     /// # Panics
     ///
-    /// Panics if the list is not valid. [`GridTemplate::try_tracks`] describes the rules.
+    /// Panics if the list is not valid. Use [`GridTemplate::try_new`], which describes the rules,
+    /// for runtime-derived tracks.
     #[track_caller]
     #[must_use]
-    pub fn tracks(tracks: impl IntoIterator<Item = impl Into<GridTrack>>) -> Self {
-        Self::try_tracks(tracks).unwrap_or_else(|error| panic!("{error}"))
+    pub fn new(tracks: impl IntoIterator<Item = impl Into<GridTrack>>) -> Self {
+        Self::try_new(tracks).unwrap_or_else(|error| panic!("{error}"))
     }
 
     /// Attempt to create an explicit track list.
@@ -407,7 +411,7 @@ impl GridTemplate {
     ///
     /// Returns an error if the list is empty, contains more than one automatic repetition, or
     /// combines an automatic repetition with a track that is not a fixed size.
-    pub fn try_tracks(
+    pub fn try_new(
         tracks: impl IntoIterator<Item = impl Into<GridTrack>>,
     ) -> Result<Self, InvalidGridTracks> {
         let tracks: Vec<GridTrack> = tracks.into_iter().map(Into::into).collect();
@@ -481,7 +485,7 @@ impl GridAutoTracks {
     ///
     /// # Panics
     ///
-    /// Panics if `tracks` is empty.
+    /// Panics if `tracks` is empty. Use [`GridAutoTracks::try_new`] for runtime-derived tracks.
     #[track_caller]
     #[must_use]
     pub fn new(tracks: impl IntoIterator<Item = impl Into<TrackSize>>) -> Self {
@@ -571,7 +575,7 @@ impl GridLine {
     /// out, because it is the default.
     #[must_use]
     pub const fn to(self, end: Self) -> GridLineRange {
-        GridLineRange::new(self).to(end)
+        GridLineRange::new(self, end)
     }
 
     /// Attempt to place at a line number.
@@ -587,7 +591,7 @@ impl GridLine {
     ///
     /// # Panics
     ///
-    /// Panics if `line` is zero.
+    /// Panics if `line` is zero. Use [`GridLine::try_line`] for runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn line(line: i32) -> Self {
@@ -609,7 +613,7 @@ impl GridLine {
     ///
     /// # Panics
     ///
-    /// Panics if `tracks` is zero.
+    /// Panics if `tracks` is zero. Use [`GridLine::try_span`] for runtime-derived values.
     #[track_caller]
     #[must_use]
     pub fn span(tracks: u32) -> Self {
@@ -630,13 +634,17 @@ impl ToCss for GridLine {
     }
 }
 
-/// A `grid-row` or `grid-column` shorthand value, which is a start line and an optional end line.
+/// A `grid-row` or `grid-column` shorthand value, which is a start line and an end line.
+///
+/// A single [`GridLine`] converts into a range with the end line `auto`, which is left out.
 ///
 /// ```rust
 /// use typed_css::{GridLine, GridLineRange};
 ///
-/// let range = GridLineRange::new(GridLine::line(1)).to(GridLine::span(2));
+/// let range = GridLineRange::new(GridLine::line(1), GridLine::span(2));
 /// assert_eq!(range.to_string(), "1 / span 2");
+/// assert_eq!(GridLine::line(1).to(GridLine::span(2)), range);
+/// assert_eq!(GridLineRange::from(GridLine::line(3)).to_string(), "3");
 /// ```
 ///
 /// [CSS Grid Level 2 placement shorthands](https://www.w3.org/TR/css-grid-2/#placement-shorthands)
@@ -648,15 +656,23 @@ pub struct GridLineRange {
 }
 
 impl GridLineRange {
-    /// Start at a grid line.
+    /// Span from the line `start` to the line `end`. An `auto` end is left out, because it is the
+    /// default.
     #[must_use]
-    pub const fn new(start: GridLine) -> Self {
-        Self { start, end: None }
+    pub const fn new(start: GridLine, end: GridLine) -> Self {
+        Self { start, end: None }.with_end(end)
     }
 
-    /// End at a grid line. An `auto` end is the same as no end.
+    /// Replace the start line.
     #[must_use]
-    pub const fn to(mut self, end: GridLine) -> Self {
+    pub const fn with_start(mut self, start: GridLine) -> Self {
+        self.start = start;
+        self
+    }
+
+    /// Replace the end line.
+    #[must_use]
+    pub const fn with_end(mut self, end: GridLine) -> Self {
         self.end = match end {
             GridLine::Auto => None,
             end => Some(end),
@@ -667,7 +683,7 @@ impl GridLineRange {
 
 impl From<GridLine> for GridLineRange {
     fn from(start: GridLine) -> Self {
-        Self::new(start)
+        Self::new(start, GridLine::Auto)
     }
 }
 
@@ -696,7 +712,7 @@ auto_sources!(
 
 auto_sources!(
     GridLine => Self::Auto,
-    GridLineRange => Self::new(GridLine::Auto),
+    GridLineRange => Self::from(GridLine::Auto),
     GridTemplate => Self::from(TrackBreadth::Auto),
     GridAutoTracks => Self(vec![TrackBreadth::Auto.into()]),
 );

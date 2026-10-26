@@ -170,7 +170,7 @@ impl LengthPercentage {
     }
 
     fn product(value: Self, operator: ProductOperator, factor: Number) -> Self {
-        let apply = |number: f64| round_noise(operator.apply(number, factor.get()));
+        let apply = |number: f64| round_noise(operator.apply(number, factor.value()));
         let folded = match &value.0 {
             Node::Length(length) => length.try_map_value(apply).ok().map(Node::Length),
             Node::Percentage(percentage) => Percentage::try_new(apply(percentage.value()))
@@ -377,7 +377,7 @@ macro_rules! arithmetic {
             #[track_caller]
             fn div(self, divisor: F) -> LengthPercentage {
                 let divisor = assert_finite(divisor.into(), "divisor");
-                assert!(divisor.get() != 0.0, "CSS divisor must not be zero");
+                assert!(divisor.value() != 0.0, "CSS divisor must not be zero");
                 LengthPercentage::product(self.into(), ProductOperator::Divide, divisor)
             }
         }
@@ -546,7 +546,7 @@ pub struct NonNegativeLengthPercentage(LengthPercentage);
 impl NonNegativeLengthPercentage {
     /// Return the value without the range restriction.
     #[must_use]
-    pub fn as_length_percentage(&self) -> &LengthPercentage {
+    pub(crate) fn as_length_percentage(&self) -> &LengthPercentage {
         &self.0
     }
 

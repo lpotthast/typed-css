@@ -1,7 +1,7 @@
 use crate::checked_value::{impl_checked_value, keyword_enum};
 
 keyword_enum! {
-    /// A `display` value, written in its single-keyword form.
+    /// A `display` value, written in its shortest form.
     ///
     /// [CSS Display Level 3 `display` grammar](https://www.w3.org/TR/css-display-3/#the-display-properties)
     pub enum Display {
@@ -18,6 +18,12 @@ keyword_enum! {
         Grid => "grid" as grid,
         InlineGrid => "inline-grid" as inline_grid,
         ListItem => "list-item" as list_item,
+        /// An inline box that generates a list marker, the same as `inline flow list-item`.
+        InlineListItem => "inline list-item" as inline_list_item,
+        /// A list item that contains its floats, the same as `block flow-root list-item`.
+        FlowRootListItem => "flow-root list-item" as flow_root_list_item,
+        /// An inline list item that contains its floats.
+        InlineFlowRootListItem => "inline flow-root list-item" as inline_flow_root_list_item,
         Table => "table" as table,
         InlineTable => "inline-table" as inline_table,
         TableRowGroup => "table-row-group" as table_row_group,

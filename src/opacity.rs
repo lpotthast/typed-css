@@ -42,7 +42,7 @@ impl Opacity {
     ///
     /// Returns an error if `value` is outside `0..=1` or not finite.
     pub fn try_new(value: impl Into<f64>) -> Result<Self, InvalidNumber> {
-        UnitInterval::try_new(value).map(Self::from)
+        UnitInterval::try_new(value.into()).map(Self::from)
     }
 
     /// Create an opacity from a number of percent from `0` to `100`.
@@ -63,7 +63,7 @@ impl Opacity {
     ///
     /// Returns an error if `value` is outside `0..=100` or not finite.
     pub fn try_percent(value: impl Into<f64>) -> Result<Self, InvalidNumber> {
-        PercentageChannel::try_new(value).map(|value| Self(OpacityValue::Percentage(value)))
+        PercentageChannel::try_new(value.into()).map(|value| Self(OpacityValue::Percentage(value)))
     }
 }
 

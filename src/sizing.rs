@@ -172,7 +172,7 @@ impl ToCss for AspectRatio {
             dest.write_str("auto ")?;
         }
         width.to_css(dest)?;
-        if height.get() != 1.0 {
+        if height.value() != 1.0 {
             dest.write_str(" / ")?;
             height.to_css(dest)?;
         }

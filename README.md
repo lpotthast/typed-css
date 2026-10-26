@@ -109,15 +109,21 @@ value of another type to the same name.
 
 `rgb`, `rgba`, `hex`, `hsl`, `hwb`, `oklab`, and `oklch` create colors. `NamedColor` has every named color of CSS, and
 `SystemColor` has the colors of the user's theme, which stay readable in forced-colors mode. `light_dark` picks a
-color by the color scheme, `color_mix` mixes two colors, and `with_alpha` makes any color translucent. Colors are
-written in the modern space-separated syntax, such as `rgb(255 0 0 / 0.5)`. A hue is an `Angle`, such as `deg(200)`, and
-the channels and weights that CSS writes as percentages are numbers from 0 to 100.
+color by the color scheme, `color_mix` mixes two colors in a color space, and `with_alpha` makes any color translucent.
+In a polar color space such as `oklch`, a `ColorInterpolationMethod` also picks the way to interpolate hues, such as
+`longer hue`. Colors are written in the modern space-separated syntax, such as `rgb(255 0 0 / 0.5)`. A hue is an
+`Angle`, such as `deg(200)`, and the channels and weights that CSS writes as percentages are numbers from 0 to 100.
 
 ### Valid values
 
 The convenience functions, such as `px` and `rgba`, panic on invalid input such as `NaN`. For values that are only
-known at runtime, use a fallible counterpart, such as `Length::try_px` or `Color::try_rgba`. A function without one,
-such as `TransformFunction::scale`, takes an `f64` that `Number::try_new` can check first.
+known at runtime, use a fallible counterpart, such as `Length::try_px`, `Color::try_rgba`, or
+`TransformFunction::try_scale`. The documentation of each function that panics names its fallible counterpart.
+
+The constructors of the numeric types, such as `Length::px`, `Percentage::new`, and `UnitInterval::new`, are `const`
+and take an `f64`, so they work in constants. The convenience functions, such as `px`, and the constructors of property
+values, such as `Opacity::new`, accept any number that converts into an `f64`, such as `16` or `0.5`. Each numeric
+type returns its number with `value()`.
 
 `typed-css` is stricter than CSS in a few places. CSS clamps an alpha or an opacity above 1, for example, but this
 crate rejects it, so that a mistake shows up where it happens. Other ranges are checked in the same way, such as a

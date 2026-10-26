@@ -71,7 +71,23 @@ fn constrained_numbers_report_their_violation() {
     }));
     assert_that!(PercentageChannel::try_new(101.0)).is_err();
     assert_that!(PercentageChannel::new(50.0)).has_display_value("50%");
-    assert_that!(NonNegativeNumber::new(3)).has_display_value("3");
+    assert_that!(NonNegativeNumber::new(3.0)).has_display_value("3");
+}
+
+#[test]
+fn constrained_numbers_are_const_constructible() {
+    const GROW: NonNegativeNumber = NonNegativeNumber::new(2.0);
+    const ALPHA: UnitInterval = UnitInterval::new(0.5);
+    const SATURATION: PercentageChannel = PercentageChannel::new(40.0);
+    assert_that!(GROW.value()).is_equal_to(2.0);
+    assert_that!(ALPHA.value()).is_equal_to(0.5);
+    assert_that!(SATURATION.value()).is_equal_to(40.0);
+}
+
+#[test]
+#[should_panic(expected = "CSS unit interval must be finite and in range [0, 1]")]
+fn unit_interval_out_of_range_panics() {
+    let _ = UnitInterval::new(f64::from(std::hint::black_box(2_u8)));
 }
 
 #[test]

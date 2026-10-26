@@ -46,7 +46,7 @@ impl Percentage {
     /// Return the number of percent.
     #[must_use]
     pub const fn value(self) -> f64 {
-        self.0.get()
+        self.0.value()
     }
 
     /// Attempt to transform the number of percent.

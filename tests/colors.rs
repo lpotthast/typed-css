@@ -44,7 +44,7 @@ fn fallible_color_constructors_reject_out_of_range_channels() {
     assert_that!(Color::try_hwb(deg(0), 50, 120)).is_err();
     assert_that!(Color::try_oklab(1.2, 0, 0)).is_err();
     assert_that!(Color::try_oklch(0.5, -0.1, deg(0))).is_err();
-    assert_that!(Color::try_mix_weighted(
+    assert_that!(Color::try_color_mix_weighted(
         ColorSpace::Srgb,
         rgb(0, 0, 0),
         120,
@@ -65,6 +65,31 @@ fn named_colors_cover_the_full_keyword_table() {
     assert_that!(Color::Named(NamedColor::CurrentColor)).has_display_value("currentcolor");
     assert_that!(NamedColor::LightGoldenrodYellow.as_str()).is_equal_to("lightgoldenrodyellow");
     assert_that!(NamedColor::Transparent.as_str()).is_equal_to("transparent");
+}
+
+#[test]
+fn color_mix_accepts_a_hue_interpolation_method_for_polar_spaces() {
+    let longer =
+        ColorInterpolationMethod::with_hue(PolarColorSpace::Oklch, HueInterpolationMethod::Longer);
+    assert_that!(color_mix(longer, NamedColor::Red, NamedColor::Blue))
+        .has_display_value("color-mix(in oklch longer hue, red, blue)");
+    assert_that!(color_mix_weighted(
+        ColorInterpolationMethod::with_hue(
+            PolarColorSpace::Hsl,
+            HueInterpolationMethod::Increasing
+        ),
+        NamedColor::Red,
+        25,
+        NamedColor::Blue,
+    ))
+    .has_display_value("color-mix(in hsl increasing hue, red 25%, blue)");
+    assert_that!(color_mix(
+        PolarColorSpace::Lch,
+        NamedColor::Red,
+        NamedColor::Blue
+    ))
+    .has_display_value("color-mix(in lch, red, blue)");
+    assert_that!(ColorSpace::from(PolarColorSpace::Hwb)).is_equal_to(ColorSpace::Hwb);
 }
 
 #[test]

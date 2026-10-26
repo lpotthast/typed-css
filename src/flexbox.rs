@@ -36,13 +36,14 @@ keyword_enum! {
 
 /// A `flex-flow` shorthand value, which combines a direction and a wrap mode.
 ///
-/// The constructors set one component and leave the other at its initial value, which is `row`
-/// for the direction and `nowrap` for the wrap mode. The value is written in the shortest form.
+/// `new` sets both components. `direction` and `wrap` set one component and leave the other at
+/// its initial value, which is `row` for the direction and `nowrap` for the wrap mode. The value
+/// is written in the shortest form.
 ///
 /// ```rust
 /// use typed_css::{FlexDirection, FlexFlow, FlexWrap};
 ///
-/// let flow = FlexFlow::direction(FlexDirection::Column).with_wrap(FlexWrap::Wrap);
+/// let flow = FlexFlow::new(FlexDirection::Column, FlexWrap::Wrap);
 /// assert_eq!(flow.to_string(), "column wrap");
 /// assert_eq!(FlexFlow::wrap(FlexWrap::Wrap).to_string(), "wrap");
 /// ```
@@ -55,6 +56,12 @@ pub struct FlexFlow {
 }
 
 impl FlexFlow {
+    /// Set the direction and the wrap mode.
+    #[must_use]
+    pub const fn new(direction: FlexDirection, wrap: FlexWrap) -> Self {
+        Self { direction, wrap }
+    }
+
     /// Set the direction, with the wrap mode `nowrap`.
     #[must_use]
     pub const fn direction(direction: FlexDirection) -> Self {
@@ -226,11 +233,21 @@ impl Flex {
     ///
     /// # Panics
     ///
-    /// Panics if `grow` is negative or not finite.
+    /// Panics if `grow` is negative or not finite. Use [`Flex::try_grow`] for runtime-derived
+    /// values.
     #[track_caller]
     #[must_use]
     pub fn grow(grow: impl Into<f64>) -> Self {
         Self::new(grow, 1, zero_percent_basis())
+    }
+
+    /// Attempt to use the grow factor `grow`, the shrink factor `1`, and the basis `0%`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `grow` is negative or not finite.
+    pub fn try_grow(grow: impl Into<f64>) -> Result<Self, InvalidNumber> {
+        Self::try_new(grow, 1, zero_percent_basis())
     }
 
     /// Use the grow factor `1`, the shrink factor `1`, and `basis`, as `flex: <basis>` does.
@@ -296,7 +313,7 @@ impl Flex {
 /// A single number is the grow factor, so `flex: 2` is `Flex::grow(2)`.
 impl From<NonNegativeNumber> for Flex {
     fn from(grow: NonNegativeNumber) -> Self {
-        Self::grow(grow.get())
+        Self::grow(grow.value())
     }
 }
 
@@ -346,8 +363,8 @@ impl ToCss for Flex {
         reason = "only exactly the default factors may be left out of the shorthand"
     )]
     fn to_css<W: fmt::Write>(&self, dest: &mut W) -> fmt::Result {
-        let grow = self.grow.get();
-        let shrink = self.shrink.get();
+        let grow = self.grow.value();
+        let shrink = self.shrink.value();
         // A unitless `0` that a `var()` basis substitutes would be read as a flex factor, unless
         // both factors come before it.
         if self.basis_is_variable() {
@@ -406,6 +423,8 @@ property_keywords! {
         min_content: "min-content" => Size::MinContent,
         max_content: "max-content" => Size::MaxContent,
         fit_content: "fit-content" => Size::FitContent,
+        stretch: "stretch" => Size::Stretch,
+        contain: "contain" => Size::Contain,
     }
 }
 
@@ -417,5 +436,7 @@ property_keywords! {
         min_content: "min-content" => FlexBasis::Width(Size::MinContent),
         max_content: "max-content" => FlexBasis::Width(Size::MaxContent),
         fit_content: "fit-content" => FlexBasis::Width(Size::FitContent),
+        stretch: "stretch" => FlexBasis::Width(Size::Stretch),
+        contain: "contain" => FlexBasis::Width(Size::Contain),
     }
 }

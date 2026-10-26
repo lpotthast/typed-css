@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-10-26
 
 This is the first release of `typed-css`. It continues `leptos-css` 0.1.1 under a name that does not depend on a
 framework, so its versions and tags follow on from `leptos-css`. The entries below describe the changes since
@@ -23,7 +23,9 @@ framework, so its versions and tags follow on from `leptos-css`. The entries bel
   the same type, so code can take the property to declare as a parameter. Properties accept the common parts of
   their grammar directly, such as `WIDTH.declare(px(120))` and `Z_INDEX.declare(10)`.
 - `px()` and the other length helpers return a `Length`, and `pct()` returns a `Percentage`. `deg()` and `ms()` and
-  the other helpers return an `Angle` or a `Time`. These types are `Copy` structs. Arithmetic on lengths and
+  the other helpers return an `Angle` or a `Time`. These types are `Copy` structs. The constructors of the numeric
+  types, such as `Length::px` and `UnitInterval::new`, are `const` and take an `f64`. Each numeric type returns its
+  number with `value()`. A zero is always written as `0`, also when it is `-0.0`. Arithmetic on lengths and
   percentages creates a `LengthPercentage`, which also holds `var()` references and math expressions.
 - `NonNegativeLengthPercentage` converts from every length-percentage. A negative value is written inside `calc()`,
   so that the browser clamps it to zero.
@@ -39,8 +41,9 @@ framework, so its versions and tags follow on from `leptos-css`. The entries bel
 - Only the value types of properties and the primitives that custom properties hold can be declared. Parts of a
   grammar, such as `TouchActionHorizontalPan`, and CSS-wide keywords can no longer be declared on their own.
   `property::ALL` takes CSS-wide keywords through `declare_global`.
-- `Color` is written in the modern space-separated syntax, such as `rgb(255 0 0 / 0.5)`. Its variants have named
-  fields with an optional alpha, so `Rgb` includes `Rgba` and `Hsl` includes `Hsla`. `Color` is no longer `Copy`.
+- `Color` is written in the modern space-separated syntax, such as `rgb(255 0 0 / 0.5)`. Its color function variants
+  have named fields with an optional alpha, so `Rgb` includes `Rgba` and `Hsl` includes `Hsla`. `Color` is no longer
+  `Copy`.
   `hsl` and `hsla` take the hue as an `Angle`, such as `deg(200)`.
 - `FontWeight` is `Normal`, `Bold`, `Bolder`, `Lighter`, or a number from 1 to 1000, created with `FontWeight::new`.
   The `W100` to `W900` variants are removed.
@@ -48,18 +51,21 @@ framework, so its versions and tags follow on from `leptos-css`. The entries bel
 
 ### Added
 
-- Layout properties: `display`, `visibility`, `position`, `order`, `box-sizing`, `aspect-ratio`, and the `overflow`
-  family.
+- Layout properties: `display` with the multi-keyword list-item values, `visibility`, `position`, `order`,
+  `box-sizing`, `aspect-ratio`, and the `overflow` family.
 - Flexbox, box alignment with the `place-*` shorthands, and grid with track lists, `repeat()`, `minmax()`,
   `fit-content()`, `fr`, auto placement, and line-based placement.
-- `transform` with 2D and 3D transform functions, and the `translate`, `rotate`, and `scale` properties.
-- `font-size`, `font-style`, `line-height`, `text-align`, the `text-decoration-*` longhands, and
-  `text-underline-offset`.
-- `border-radius` and the physical corner-radius longhands.
+- `transform` with 2D and 3D transform functions, and the `translate`, `rotate`, and `scale` properties. Each
+  transform constructor that takes plain numbers has a fallible `try_` counterpart, such as
+  `TransformFunction::try_scale`.
+- `font-size`, `font-style` with `left` and `right`, `line-height`, `text-align`, the `text-decoration-*` longhands,
+  and `text-underline-offset`.
+- `border-radius` and its physical and logical corner-radius longhands.
 - `cursor`, `pointer-events`, `user-select`, `scroll-behavior`, `scrollbar-gutter`, and the `overscroll-behavior`
   family.
 - The colors `hex()`, `hwb()`, `oklab()`, `oklch()`, `light_dark()`, and `color_mix()`, every named color of CSS, and
-  the system colors in `SystemColor`. `Color::with_alpha` makes any color translucent.
+  the system colors in `SystemColor`. `Color::with_alpha` makes any color translucent. `color_mix()` takes a
+  `ColorInterpolationMethod`, which can add a hue interpolation such as `longer hue` to a `PolarColorSpace`.
 - A method on each property for each keyword that the property accepts on its own, such as `DISPLAY.grid()`, and a
   method for each CSS-wide keyword, such as `PADDING.inherit()`.
 - `Auto`, which converts into every grammar with an `auto` keyword, so `WIDTH.declare(Auto)` works.
@@ -103,7 +109,7 @@ framework, so its versions and tags follow on from `leptos-css`. The entries bel
 - Compatibility with Leptos 0.8 and Rust 1.89 or newer, with an optional `nightly` feature forwarded to Leptos.
   Public enums are non-exhaustive.
 
-[Unreleased]: https://github.com/lpotthast/typed-css/compare/v0.1.1...HEAD
+[0.2.0]: https://github.com/lpotthast/typed-css/compare/v0.1.1...v0.2.0
 
 [0.1.1]: https://github.com/lpotthast/typed-css/compare/v0.1.0...v0.1.1
 
