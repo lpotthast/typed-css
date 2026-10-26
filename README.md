@@ -5,6 +5,22 @@
 [![CI](https://github.com/lpotthast/leptos-css/actions/workflows/ci.yml/badge.svg)](https://github.com/lpotthast/leptos-css/actions/workflows/ci.yml)
 [![MSRV](https://img.shields.io/badge/rust-1.89%2B-blue.svg)](https://www.rust-lang.org/)
 
+> [!IMPORTANT]
+> **`leptos-css` has been renamed to [`typed-css`](https://crates.io/crates/typed-css).** This is the final
+> `leptos-css` release and receives no further updates. `typed-css` is the same library under a framework-neutral
+> name, with its Leptos integration behind the `leptos` feature:
+>
+> ```toml
+> [dependencies]
+> typed-css = { version = "0.2", features = ["leptos"] }
+> ```
+>
+> To migrate, change your imports from `leptos_css::...` to `typed_css::...`. `typed-css` 0.2 also redesigns the
+> API and adds many properties. Its [changelog](https://github.com/lpotthast/typed-css/blob/main/CHANGELOG.md) lists
+> every change since `leptos-css` 0.1.
+>
+> The documentation below describes `leptos-css` 0.1.
+
 Typed CSS primitives and property-specific declaration grammars for
 [Leptos](https://leptos.dev). The checked API is deliberately fail-closed: unsupported CSS cannot be smuggled in as
 an arbitrary value string, and a value can become a declaration only through a selector for a property whose

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1]
+
+### Changed
+
+- `leptos-css` is renamed to [`typed-css`](https://crates.io/crates/typed-css). This is the final `leptos-css`
+  release, and the README points to the new crate. The library code is unchanged.
+
 ## [0.1.0] - 2026-07-17
 
 ### Added
@@ -27,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Compatibility with Leptos 0.8 and Rust 1.89 or newer, with an optional `nightly` feature forwarded to Leptos.
   Public enums are non-exhaustive.
 
-[Unreleased]: https://github.com/lpotthast/leptos-css/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/lpotthast/leptos-css/compare/v0.1.1...HEAD
+
+[0.1.1]: https://github.com/lpotthast/leptos-css/compare/v0.1.0...v0.1.1
 
 [0.1.0]: https://github.com/lpotthast/leptos-css/releases/tag/v0.1.0
