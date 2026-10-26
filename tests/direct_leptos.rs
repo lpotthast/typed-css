@@ -1,22 +1,10 @@
-//! Direct Leptos integration tests for typed CSS property values.
+//! Direct Leptos integration tests for checked declarations.
 
+use assertr::prelude::*;
 use leptos::tachys::html::{attribute::Attribute, style::IntoStyle};
-use leptos_css::{
-    BorderCornerRadius, CssColor, CssColorName, CssCustomProperty, CssDimension, CssDimensionExpr,
-    ForcedColorAdjust, GlobalKeyword, Inset, LengthPercentageAuto, LengthPercentageCalculation,
-    MarginAxis, MaxSize, NonNegativeLengthPercentage, Padding, PaddingAxis, PrintColorAdjust,
-    PropertyName, Size, TouchAction, TouchActionGestures, TouchActionHorizontalPan,
-    TouchActionVerticalPan, ViewTransitionName, css_custom_property, pct,
-    property::{
-        AllProperty, BackgroundColorProperty, BorderStartStartRadiusProperty, ColorProperty,
-        ForcedColorAdjustProperty, InsetBlockStartProperty, InsetProperty, MarginInlineProperty,
-        MaxWidthProperty, MinWidthProperty, PaddingBlockProperty, PaddingProperty,
-        PrintColorAdjustProperty, TouchActionProperty, ViewTransitionNameProperty, WidthProperty,
-    },
-    px, rgb, var,
-};
+use typed_css::{property::*, *};
 
-css_custom_property!(ACCENT_COLOR: CssColor = "--accent-color");
+custom_property!(ACCENT_COLOR: Color = "--accent-color");
 
 fn render_style_attribute(attribute: impl Attribute) -> String {
     let mut html = String::new();
@@ -36,198 +24,113 @@ fn render_style(style: impl IntoStyle) -> String {
 
 #[test]
 fn all_property_accepts_only_a_global_keyword() {
-    let attribute = AllProperty
-        .declare(GlobalKeyword::RevertLayer)
+    let attribute = ALL
+        .declare_global(GlobalKeyword::RevertLayer)
         .into_attribute();
 
-    assert_eq!(render_style_attribute(attribute), "all:revert-layer;");
+    assert_that!(render_style_attribute(attribute)).is_equal_to("all:revert-layer;");
 }
 
 #[test]
-fn ordinary_property_marker_accepts_global_through_separate_method() {
-    let attribute = PaddingProperty.declare_global(GlobalKeyword::Inherit);
-
-    assert_eq!(render_style(attribute), "padding:inherit;");
+fn ordinary_properties_accept_global_keywords_through_a_separate_method() {
+    assert_that!(render_style(PADDING.declare_global(GlobalKeyword::Inherit)))
+        .is_equal_to("padding:inherit;");
 }
 
 #[test]
-fn typed_property_marker_accepts_its_exact_grammar_during_ssr() {
-    let gestures = TouchActionGestures::horizontal(TouchActionHorizontalPan::PanLeft)
-        .with_vertical(TouchActionVerticalPan::PanUp)
-        .with_pinch_zoom();
-    let attribute = TouchActionProperty.declare(TouchAction::Gestures(gestures));
-
-    assert_eq!(
-        render_style(attribute),
-        "touch-action:pan-left pan-up pinch-zoom;"
-    );
+fn properties_accept_grammar_components_directly() {
+    assert_that!(render_style(WIDTH.declare(px(120)))).is_equal_to("width:120px;");
+    assert_that!(render_style(WIDTH.declare(pct(100) - px(20))))
+        .is_equal_to("width:calc(100% - 20px);");
+    assert_that!(render_style(PADDING.declare(px(16)))).is_equal_to("padding:16px;");
+    assert_that!(render_style(PADDING_TOP.declare(px(12)))).is_equal_to("padding-top:12px;");
+    assert_that!(render_style(MARGIN_INLINE.declare(px(-8)))).is_equal_to("margin-inline:-8px;");
+    assert_that!(render_style(GAP.declare(rem(1)))).is_equal_to("gap:1rem;");
+    assert_that!(render_style(BORDER_RADIUS.declare(px(6)))).is_equal_to("border-radius:6px;");
+    assert_that!(render_style(
+        FONT_WEIGHT.declare(FontWeightNumber::new(600))
+    ))
+    .is_equal_to("font-weight:600;");
+    assert_that!(render_style(ROTATE.declare(deg(15)))).is_equal_to("rotate:15deg;");
+    assert_that!(render_style(OVERFLOW.declare(OverflowKeyword::Hidden)))
+        .is_equal_to("overflow:hidden;");
+    assert_that!(render_style(
+        JUSTIFY_CONTENT.declare(ContentPosition::Center)
+    ))
+    .is_equal_to("justify-content:center;");
+    assert_that!(render_style(GRID_COLUMN.declare(GridLine::span(2))))
+        .is_equal_to("grid-column:span 2;");
+    assert_that!(render_style(GRID_AUTO_ROWS.declare(fr(1)))).is_equal_to("grid-auto-rows:1fr;");
+    assert_that!(render_style(ORDER.declare(-1))).is_equal_to("order:-1;");
+    assert_that!(render_style(FLEX_GROW.declare(NonNegativeNumber::new(2.0))))
+        .is_equal_to("flex-grow:2;");
 }
 
 #[test]
-fn property_markers_render_checked_values_and_typed_expressions() {
-    let padding = render_style(PaddingProperty.declare(Padding::all(px(16))));
-    let width = render_style(WidthProperty.declare(Size::Calculation(
-        LengthPercentageCalculation::new(pct(100) - px(20)),
-    )));
-    let color = render_style(ColorProperty.declare(CssColor::Named(CssColorName::Red)));
-
-    assert_eq!(padding, "padding:16px;");
-    assert_eq!(width, "width:calc(100% - 20px);");
-    assert_eq!(color, "color:red;");
+fn layout_properties_render_their_grammars() {
+    assert_that!(render_style(DISPLAY.declare(Display::Grid))).is_equal_to("display:grid;");
+    assert_that!(render_style(POSITION.declare(Position::Absolute)))
+        .is_equal_to("position:absolute;");
+    assert_that!(render_style(
+        TRANSFORM.declare(TransformFunction::translate(px(4), px(8)))
+    ))
+    .is_equal_to("transform:translate(4px, 8px);");
+    assert_that!(render_style(FONT_SIZE.declare(rem(1.5)))).is_equal_to("font-size:1.5rem;");
+    assert_that!(render_style(LINE_HEIGHT.declare(LineHeight::number(1.4))))
+        .is_equal_to("line-height:1.4;");
+    assert_that!(render_style(CURSOR.declare(Cursor::Pointer))).is_equal_to("cursor:pointer;");
+    assert_that!(render_style(FLEX.declare(Flex::grow(1)))).is_equal_to("flex:1;");
 }
 
 #[test]
-fn sizing_level_four_keywords_render_for_preferred_minimum_and_maximum_properties() {
-    let preferred = render_style(WidthProperty.declare(Size::FitContent));
-    let minimum = render_style(MinWidthProperty.declare(Size::Contain));
-    let maximum = render_style(MaxWidthProperty.declare(MaxSize::Stretch));
+fn properties_sharing_a_grammar_share_a_type() {
+    fn tint(target: Property<Color>) -> Declaration {
+        target.declare(hex(0x000c_2238))
+    }
 
-    assert_eq!(preferred, "width:fit-content;");
-    assert_eq!(minimum, "min-width:contain;");
-    assert_eq!(maximum, "max-width:stretch;");
-}
-
-#[test]
-fn one_value_grammar_can_build_distinct_checked_properties() {
-    let red = CssColor::Named(CssColorName::Red);
-    let foreground = ColorProperty.declare(red);
-    let background = BackgroundColorProperty.declare(red);
-
-    assert_eq!(ColorProperty.property_name(), PropertyName::Color.as_str());
-    assert_eq!(
-        BackgroundColorProperty.property_name(),
-        PropertyName::BackgroundColor.as_str()
-    );
-    assert_eq!(foreground.property_name(), "color");
-    assert_eq!(background.property_name(), "background-color");
-    assert_ne!(foreground, background);
-
-    let mut output = String::new();
-    foreground.clone().write_declaration_to(&mut output);
-    assert_eq!(output, "color:red;");
-    assert_eq!(foreground, foreground.clone());
-}
-
-#[test]
-fn color_helpers_feed_every_property_using_the_color_grammar() {
-    let foreground = ColorProperty.declare(rgb(12, 34, 56));
-    let background = BackgroundColorProperty.declare(rgb(12, 34, 56));
-
-    assert_eq!(render_style(foreground), "color:rgb(12, 34, 56);");
-    assert_eq!(
-        render_style(background),
-        "background-color:rgb(12, 34, 56);"
-    );
-}
-
-#[test]
-fn longhand_marker_accepts_only_non_negative_length_percentage() {
-    let value = NonNegativeLengthPercentage::new(px(12));
-    let attribute = leptos_css::property::PaddingTopProperty.declare(value);
-
-    assert_eq!(render_style(attribute), "padding-top:12px;");
+    assert_that!(COLOR.name()).is_equal_to("color");
+    assert_that!(render_style(tint(COLOR))).is_equal_to("color:rgb(12 34 56);");
+    assert_that!(render_style(tint(BACKGROUND_COLOR)))
+        .is_equal_to("background-color:rgb(12 34 56);");
+    assert_that!(tint(COLOR)).is_not_equal_to(tint(BACKGROUND_COLOR));
 }
 
 #[test]
 fn typed_custom_properties_and_var_render_during_ssr() {
-    let declaration = render_style(ACCENT_COLOR.declare(CssColor::Named(CssColorName::Aqua)));
-    let runtime_accent = CssCustomProperty::<CssColor>::new("--runtime-accent-color");
-    let runtime_declaration =
-        render_style(runtime_accent.declare(CssColor::Named(CssColorName::Red)));
-    let reference = render_style(ColorProperty.declare(var(
-        &ACCENT_COLOR,
-        CssColor::Named(CssColorName::CurrentColor),
-    )));
+    let runtime_accent = CustomProperty::<Color>::new("--runtime-accent-color");
 
-    assert_eq!(declaration, "--accent-color:aqua;");
-    assert_eq!(runtime_declaration, "--runtime-accent-color:red;");
-    assert_eq!(reference, "color:var(--accent-color, currentcolor);");
+    assert_that!(render_style(ACCENT_COLOR.declare(NamedColor::Aqua)))
+        .is_equal_to("--accent-color:aqua;");
+    assert_that!(render_style(runtime_accent.declare(NamedColor::Red)))
+        .is_equal_to("--runtime-accent-color:red;");
+    assert_that!(render_style(
+        COLOR.declare(var_or(&ACCENT_COLOR, NamedColor::CurrentColor))
+    ))
+    .is_equal_to("color:var(--accent-color, currentcolor);");
 }
 
 #[test]
-fn sizing_and_touch_action_grammars_can_type_custom_properties() {
-    let preferred_size = CssCustomProperty::<Size>::new("--preferred-size");
-    let maximum_size = CssCustomProperty::<MaxSize>::new("--maximum-size");
-    let horizontal_pan = CssCustomProperty::<TouchActionHorizontalPan>::new("--horizontal-pan");
-    let vertical_pan = CssCustomProperty::<TouchActionVerticalPan>::new("--vertical-pan");
-    let gestures = CssCustomProperty::<TouchActionGestures>::new("--gestures");
-    let touch_action = CssCustomProperty::<TouchAction>::new("--touch-action");
+fn checked_declarations_expose_their_serialized_parts() {
+    let declaration = BACKGROUND_COLOR.declare(oklch(0.7, 0.1, deg(120)));
 
-    assert_eq!(
-        render_style(preferred_size.declare(Size::FitContent)),
-        "--preferred-size:fit-content;"
-    );
-    assert_eq!(
-        render_style(maximum_size.declare(MaxSize::Contain)),
-        "--maximum-size:contain;"
-    );
-    assert_eq!(
-        render_style(horizontal_pan.declare(TouchActionHorizontalPan::PanLeft)),
-        "--horizontal-pan:pan-left;"
-    );
-    assert_eq!(
-        render_style(vertical_pan.declare(TouchActionVerticalPan::PanUp)),
-        "--vertical-pan:pan-up;"
-    );
-    assert_eq!(
-        render_style(
-            gestures.declare(
-                TouchActionGestures::horizontal(TouchActionHorizontalPan::PanX)
-                    .with_vertical(TouchActionVerticalPan::PanY)
-                    .with_pinch_zoom()
-            )
-        ),
-        "--gestures:pan-x pan-y pinch-zoom;"
-    );
-    assert_eq!(
-        render_style(touch_action.declare(TouchAction::Manipulation)),
-        "--touch-action:manipulation;"
-    );
+    assert_that!(declaration.property_name()).is_equal_to("background-color");
+    assert_that!(declaration.value()).is_equal_to("oklch(0.7 0.1 120deg)");
+    assert_that!(declaration.to_string()).is_equal_to("background-color:oklch(0.7 0.1 120deg);");
 }
 
+/// The same code as the Leptos example in the README.
 #[test]
-fn typed_variables_work_inside_checked_size_calculations() {
-    let sidebar = CssCustomProperty::<CssDimension>::new("--sidebar-width");
-    let expression =
-        CssDimensionExpr::from(pct(100)) - CssDimensionExpr::from(var(&sidebar, px(320)));
-    let width = render_style(WidthProperty.declare(Size::Calculation(
-        LengthPercentageCalculation::new(expression),
-    )));
+fn readme_example_compiles() {
+    use leptos::prelude::*;
 
-    assert_eq!(width, "width:calc(100% - var(--sidebar-width, 320px));");
-}
-
-#[test]
-fn modern_property_markers_render_their_closed_grammars() {
-    let forced =
-        render_style(ForcedColorAdjustProperty.declare(ForcedColorAdjust::PreserveParentColor));
-    let print = render_style(PrintColorAdjustProperty.declare(PrintColorAdjust::Exact));
-    let transition =
-        render_style(ViewTransitionNameProperty.declare(ViewTransitionName::named("hero-card")));
-    let radius = render_style(
-        BorderStartStartRadiusProperty.declare(BorderCornerRadius::elliptical(px(8), pct(50))),
-    );
-
-    assert_eq!(forced, "forced-color-adjust:preserve-parent-color;");
-    assert_eq!(print, "print-color-adjust:exact;");
-    assert_eq!(transition, "view-transition-name:hero-card;");
-    assert_eq!(radius, "border-start-start-radius:8px 50%;");
-}
-
-#[test]
-fn logical_box_model_markers_render_checked_shorthands_and_longhands() {
-    let padding = render_style(PaddingBlockProperty.declare(PaddingAxis::start_end(px(8), pct(5))));
-    let margin = render_style(MarginInlineProperty.declare(MarginAxis::StartEnd(
-        LengthPercentageAuto::Auto,
-        LengthPercentageAuto::from(px(-8)),
-    )));
-    let inset = render_style(
-        InsetProperty.declare(Inset::All(LengthPercentageAuto::from(pct(50) - px(20)))),
-    );
-    let inset_start = render_style(InsetBlockStartProperty.declare(LengthPercentageAuto::Auto));
-
-    assert_eq!(padding, "padding-block:8px 5%;");
-    assert_eq!(margin, "margin-inline:auto -8px;");
-    assert_eq!(inset, "inset:calc(50% - 20px);");
-    assert_eq!(inset_start, "inset-block-start:auto;");
+    let owner = Owner::new();
+    owner.with(|| {
+        let (highlighted, _set_highlighted) = signal(false);
+        let _view = view! {
+            <div style=PADDING.declare(px(16))>"Padded"</div>
+            <p style=move || COLOR.declare(if highlighted.get() { NamedColor::Crimson } else { NamedColor::Black })>
+                "Reactive color"
+            </p>
+        };
+    });
 }

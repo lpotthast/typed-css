@@ -1,254 +1,152 @@
-//! Public-surface tests for dimensions.
+//! Public-surface tests for lengths, percentages, and length-percentage expressions.
 
 use assertr::prelude::*;
-use leptos_css::*;
-
-fn finite(value: f64) -> FiniteF64 {
-    FiniteF64::new(value)
-}
+use typed_css::*;
 
 #[test]
-fn test_css_length_write_to() {
+fn every_length_unit_serializes() {
     let cases = [
-        (CssLength::Px(finite(10.0)), "10px"),
-        (CssLength::Px(finite(0.0)), "0px"),
-        (CssLength::Em(finite(1.5)), "1.5em"),
-        (CssLength::Rem(finite(2.0)), "2rem"),
-        (CssLength::Vw(finite(100.0)), "100vw"),
-        (CssLength::Vh(finite(50.0)), "50vh"),
-        (CssLength::Vmin(finite(25.0)), "25vmin"),
-        (CssLength::Vmax(finite(75.0)), "75vmax"),
-        (CssLength::Ch(finite(3.0)), "3ch"),
-        (CssLength::Dvw(finite(50.0)), "50dvw"),
-        (CssLength::Dvh(finite(100.0)), "100dvh"),
-        (CssLength::Svw(finite(80.0)), "80svw"),
-        (CssLength::Svh(finite(90.0)), "90svh"),
-        (CssLength::Lvw(finite(100.0)), "100lvw"),
-        (CssLength::Lvh(finite(100.0)), "100lvh"),
-        (CssLength::Cqw(finite(50.0)), "50cqw"),
-        (CssLength::Cqh(finite(25.0)), "25cqh"),
+        (px(10), "10px"),
+        (em(1.5), "1.5em"),
+        (rem(2), "2rem"),
+        (vw(100), "100vw"),
+        (vh(50), "50vh"),
+        (vmin(25), "25vmin"),
+        (vmax(75), "75vmax"),
+        (ch(3), "3ch"),
+        (dvw(50), "50dvw"),
+        (dvh(100), "100dvh"),
+        (svw(80), "80svw"),
+        (svh(90), "90svh"),
+        (lvw(100), "100lvw"),
+        (lvh(100), "100lvh"),
+        (cqw(50), "50cqw"),
+        (cqh(25), "25cqh"),
+        (cqi(25), "25cqi"),
+        (cqb(2), "2cqb"),
+        (cqmin(3), "3cqmin"),
+        (cqmax(4), "4cqmax"),
+        (lh(1.5), "1.5lh"),
+        (rlh(2), "2rlh"),
+        (ex(1), "1ex"),
+        (pt(12), "12pt"),
     ];
     for (length, expected) in cases {
-        let mut buf = String::new();
-        length.write_to(&mut buf);
-        assertr::assert_that!(buf).is_equal_to(expected.to_string());
+        assert_that!(length).has_display_value(expected);
     }
+    assert_that!(pct(75)).has_display_value("75%");
 }
 
 #[test]
-fn test_convenience_functions() {
-    assertr::assert_that!(format!("{}", px(100))).is_equal_to("100px".to_string());
-    assertr::assert_that!(format!("{}", em(0.6))).is_equal_to("0.6em".to_string());
-    assertr::assert_that!(format!("{}", rem(1.5))).is_equal_to("1.5rem".to_string());
-    assertr::assert_that!(format!("{}", vw(100))).is_equal_to("100vw".to_string());
-    assertr::assert_that!(format!("{}", vh(50))).is_equal_to("50vh".to_string());
-    assertr::assert_that!(format!("{}", pct(75))).is_equal_to("75%".to_string());
-    assertr::assert_that!(format!("{}", deg(180))).is_equal_to("180deg".to_string());
-    assertr::assert_that!(format!("{}", s(0.3))).is_equal_to("0.3s".to_string());
-    assertr::assert_that!(format!("{}", ms(300))).is_equal_to("300ms".to_string());
-    assertr::assert_that!(format!("{}", fr(1))).is_equal_to("1fr".to_string());
-}
-
-#[test]
-fn test_modern_viewport_convenience_functions() {
-    assertr::assert_that!(format!("{}", dvw(50))).is_equal_to("50dvw".to_string());
-    assertr::assert_that!(format!("{}", dvh(100))).is_equal_to("100dvh".to_string());
-    assertr::assert_that!(format!("{}", svw(80))).is_equal_to("80svw".to_string());
-    assertr::assert_that!(format!("{}", svh(90))).is_equal_to("90svh".to_string());
-    assertr::assert_that!(format!("{}", lvw(100))).is_equal_to("100lvw".to_string());
-    assertr::assert_that!(format!("{}", lvh(100))).is_equal_to("100lvh".to_string());
-    assertr::assert_that!(format!("{}", cqw(50))).is_equal_to("50cqw".to_string());
-    assertr::assert_that!(format!("{}", cqh(25))).is_equal_to("25cqh".to_string());
-}
-
-#[test]
-fn test_css_dimension_modern_const_fns() {
-    assertr::assert_that!(CssDimension::dvw(50.0).to_string()).is_equal_to("50dvw".to_string());
-    assertr::assert_that!(CssDimension::dvh(100.0).to_string()).is_equal_to("100dvh".to_string());
-    assertr::assert_that!(CssDimension::svw(80.0).to_string()).is_equal_to("80svw".to_string());
-    assertr::assert_that!(CssDimension::svh(90.0).to_string()).is_equal_to("90svh".to_string());
-    assertr::assert_that!(CssDimension::lvw(100.0).to_string()).is_equal_to("100lvw".to_string());
-    assertr::assert_that!(CssDimension::lvh(100.0).to_string()).is_equal_to("100lvh".to_string());
-    assertr::assert_that!(CssDimension::cqw(50.0).to_string()).is_equal_to("50cqw".to_string());
-    assertr::assert_that!(CssDimension::cqh(25.0).to_string()).is_equal_to("25cqh".to_string());
-}
-
-#[test]
-fn test_px_accepts_i32() {
-    let v = px(10_i32);
-    assertr::assert_that!(format!("{v}")).is_equal_to("10px".to_string());
-}
-
-#[test]
-fn test_css_dimension_associated_fns() {
-    assertr::assert_that!(CssDimension::em(1.5).to_string()).is_equal_to("1.5em".to_string());
-    assertr::assert_that!(CssDimension::px(10.0).to_string()).is_equal_to("10px".to_string());
-    assertr::assert_that!(CssDimension::pct(50.0).to_string()).is_equal_to("50%".to_string());
-    assertr::assert_that!(CssDimension::rem(2.0).to_string()).is_equal_to("2rem".to_string());
-}
-
-#[test]
-fn test_css_dimension_const() {
-    const DIM: CssDimension = CssDimension::em(3.5);
-    assertr::assert_that!(DIM.to_string()).is_equal_to("3.5em".to_string());
-}
-
-#[test]
-fn test_css_dimension_is_copy() {
-    let dim = CssDimension::px(10.0);
-    let copy = dim;
-    // Both are usable — dim was copied, not moved.
-    assertr::assert_that!(dim.to_string()).is_equal_to(copy.to_string());
-}
-
-#[test]
-fn test_neg_css_length() {
-    assertr::assert_that!((-CssLength::Px(finite(10.0))).to_string())
-        .is_equal_to("-10px".to_string());
-    assertr::assert_that!((-CssLength::Em(finite(1.5))).to_string())
-        .is_equal_to("-1.5em".to_string());
-}
-
-#[test]
-fn test_neg_css_dimension() {
-    assertr::assert_that!((-px(10)).to_string()).is_equal_to("-10px".to_string());
-    assertr::assert_that!((-pct(50)).to_string()).is_equal_to("-50%".to_string());
-    assertr::assert_that!((-CssDimension::Zero).to_string()).is_equal_to("0px".to_string());
-}
-
-#[test]
-fn test_try_map_value_rejects_non_finite_result() {
-    let length = CssLength::Px(finite(10.0));
-    assert!(matches!(
-        length.try_map_value(|_| f64::NAN),
-        Err(InvalidCssNumber::NonFinite { .. })
-    ));
-}
-
-#[test]
-#[should_panic(expected = "CSS number value must be finite")]
-fn test_map_value_non_finite_result_panics() {
-    let _ = CssLength::Px(finite(10.0)).map_value(|_| f64::INFINITY);
-}
-
-#[test]
-#[should_panic(expected = "CSS number value must be finite")]
-fn test_same_unit_arithmetic_overflow_panics() {
-    let _ = px(f64::MAX) + px(f64::MAX);
+fn lengths_and_percentages_are_const_constructible_and_copy() {
+    const GUTTER: Length = Length::px(8.0);
+    const HALF: Percentage = Percentage::new(50.0);
+    let copied = GUTTER;
+    assert_that!(GUTTER).is_equal_to(copied);
+    assert_that!(HALF).has_display_value("50%");
+    assert_that!(Length::try_px(f64::NAN)).is_err();
+    assert_that!(Percentage::try_new(f64::INFINITY)).is_err();
+    assert_that!(Length::try_rem(1.25).unwrap()).has_display_value("1.25rem");
 }
 
 #[test]
 #[should_panic(expected = "CSS px value must be finite")]
-fn test_associated_px_nan_panics() {
-    let _ = CssDimension::px(f64::NAN);
-}
-
-#[test]
-#[should_panic(expected = "CSS px value must be finite")]
-fn test_px_nan_panics() {
+fn px_nan_panics() {
     let _ = px(f64::NAN);
 }
 
 #[test]
-#[should_panic(expected = "CSS % value must be finite")]
-fn test_pct_infinity_panics() {
-    let _ = pct(f64::INFINITY);
+fn negation_and_value_mapping_keep_the_unit() {
+    assert_that!(-px(10)).has_display_value("-10px");
+    assert_that!(-pct(5)).has_display_value("-5%");
+    assert_that!(em(2).map_value(|v| v * 2.0)).has_display_value("4em");
+    assert_that!(px(1).try_map_value(|_| f64::NAN)).is_err();
+    assert_that!(em(2).unit()).is_equal_to("em");
 }
 
 #[test]
-fn test_css_dimension_expr_simple() {
-    let expr = CssDimensionExpr::from(px(100));
-    assertr::assert_that!(expr.to_string()).is_equal_to("100px".to_string());
+fn every_dimension_scales_by_a_number() {
+    assert_that!(px(10) * 2).has_display_value("20px");
+    assert_that!(pct(10) / 4).has_display_value("2.5%");
+    assert_that!(deg(10) * 3).has_display_value("30deg");
+    assert_that!(-turn(0.25)).has_display_value("-0.25turn");
+    assert_that!(ms(300) / 2).has_display_value("150ms");
+    assert_that!(s(1.5).map_value(|v| v * 2.0)).has_display_value("3s");
 }
 
 #[test]
-fn test_css_dimension_expr_calc() {
-    assertr::assert_that!((pct(100) - px(20)).to_string())
-        .is_equal_to("calc(100% - 20px)".to_string());
+fn same_unit_arithmetic_folds() {
+    assert_that!(px(10) + px(5)).has_display_value("15px");
+    assert_that!(px(10) - px(15)).has_display_value("-5px");
+    assert_that!(pct(50) + pct(25)).has_display_value("75%");
 }
 
 #[test]
-fn test_length_percentage_calculation_wraps_simple_out_of_range_value() {
-    let calculation = LengthPercentageCalculation::new(px(-1));
-    assertr::assert_that!(calculation.to_string()).is_equal_to("calc(-1px)".to_string());
+fn folding_overflow_keeps_the_expression_instead_of_panicking() {
+    assert_that!(px(f64::MAX) + px(f64::MAX)).has_display_value(format!(
+        "calc({} + {})",
+        px(f64::MAX),
+        px(f64::MAX)
+    ));
 }
 
 #[test]
-fn test_length_percentage_calculation_does_not_double_wrap_function_expression() {
-    let calculation = LengthPercentageCalculation::new(css_min(vw(50), px(300)));
-    assertr::assert_that!(calculation.to_string()).is_equal_to("min(50vw, 300px)".to_string());
+fn mixed_unit_arithmetic_builds_calc_sums() {
+    assert_that!(pct(100) - px(20)).has_display_value("calc(100% - 20px)");
+    assert_that!(pct(100) - px(20) + rem(1)).has_display_value("calc(100% - 20px + 1rem)");
+    assert_that!(vh(100) - (px(10) + rem(2))).has_display_value("calc(100vh - (10px + 2rem))");
 }
 
 #[test]
-fn test_css_dimension_expr_min() {
-    assertr::assert_that!(css_min(vw(50), px(300)).to_string())
-        .is_equal_to("min(50vw, 300px)".to_string());
+fn math_functions_take_sums_as_bare_arguments() {
+    assert_that!(min(pct(100), px(600))).has_display_value("min(100%, 600px)");
+    assert_that!(max(px(200), pct(50) - px(10))).has_display_value("max(200px, 50% - 10px)");
+    assert_that!(clamp(rem(1), vw(2.5), rem(2))).has_display_value("clamp(1rem, 2.5vw, 2rem)");
+    assert_that!(env(EnvironmentVariable::SafeAreaInsetTop))
+        .has_display_value("env(safe-area-inset-top)");
+    assert_that!(min(pct(100), px(600)) + px(16))
+        .has_display_value("calc(min(100%, 600px) + 16px)");
 }
 
 #[test]
-fn test_css_dimension_expr_max() {
-    assertr::assert_that!(css_max(px(200), pct(50)).to_string())
-        .is_equal_to("max(200px, 50%)".to_string());
+fn non_negative_contexts_wrap_values_that_may_be_negative() {
+    let non_negative = |value: LengthPercentage| NonNegativeLengthPercentage::from(value);
+
+    assert_that!(non_negative(px(4).into())).has_display_value("4px");
+    assert_that!(non_negative(px(-4).into())).has_display_value("calc(-4px)");
+    assert_that!(non_negative(px(10) - px(20))).has_display_value("calc(-10px)");
+    assert_that!(non_negative(pct(100) - px(20))).has_display_value("calc(100% - 20px)");
+    assert_that!(non_negative(min(px(-1), pct(10)))).has_display_value("min(-1px, 10%)");
+    assert_that!(non_negative(env(EnvironmentVariable::SafeAreaInsetBottom)))
+        .has_display_value("env(safe-area-inset-bottom)");
 }
 
 #[test]
-fn test_css_dimension_expr_clamp() {
-    assertr::assert_that!(css_clamp(px(200), pct(50), px(800)).to_string())
-        .is_equal_to("clamp(200px, 50%, 800px)".to_string());
+fn unrestricted_contexts_keep_negative_values_plain() {
+    assert_that!(LengthPercentageAuto::from(px(-8))).has_display_value("-8px");
+    assert_that!(LengthPercentageAuto::Auto).has_display_value("auto");
+    assert_that!(LengthPercentage::from(px(-1))).has_display_value("-1px");
 }
 
 #[test]
-fn test_css_dimension_expr_env() {
-    assertr::assert_that!(css_env(CssEnvironmentVariable::SafeAreaInsetTop).to_string())
-        .is_equal_to("env(safe-area-inset-top)".to_string());
+fn products_fold_direct_values_and_wrap_expressions() {
+    assert_that!(px(10) * 2).has_display_value("20px");
+    assert_that!(pct(50) / 4).has_display_value("12.5%");
+    assert_that!((pct(100) - px(20)) / 3).has_display_value("calc((100% - 20px) / 3)");
+    assert_that!(px(4) + (pct(100) - px(20)) * 2)
+        .has_display_value("calc(4px + (100% - 20px) * 2)");
+    assert_that!(-(pct(100) - px(20))).has_display_value("calc((100% - 20px) * -1)");
 }
 
 #[test]
-fn test_dimension_add_same_unit_folds() {
-    let result = px(10) + px(5);
-    assertr::assert_that!(result.to_string()).is_equal_to("15px".to_string());
+fn folding_rounds_away_float_noise() {
+    assert_that!(px(0.1) + px(0.2)).has_display_value("0.3px");
+    assert_that!(px(1) / 3).has_display_value("0.333333333333333px");
+    assert_that!(px(1e-10) + px(0)).has_display_value("0.0000000001px");
 }
 
 #[test]
-fn test_dimension_sub_same_unit_folds() {
-    let result = px(10) - px(3);
-    assertr::assert_that!(result.to_string()).is_equal_to("7px".to_string());
-}
-
-#[test]
-fn test_dimension_add_percent_folds() {
-    let result = pct(60) + pct(40);
-    assertr::assert_that!(result.to_string()).is_equal_to("100%".to_string());
-}
-
-#[test]
-fn test_dimension_add_mixed_produces_calc() {
-    let result = pct(100) - px(20);
-    assertr::assert_that!(result.to_string()).is_equal_to("calc(100% - 20px)".to_string());
-}
-
-#[test]
-fn test_dimension_add_zero_simplifies() {
-    let result = px(10) + CssDimension::Zero;
-    assertr::assert_that!(result.to_string()).is_equal_to("10px".to_string());
-}
-
-#[test]
-fn test_dimension_sub_zero_simplifies() {
-    let result = pct(50) - CssDimension::Zero;
-    assertr::assert_that!(result.to_string()).is_equal_to("50%".to_string());
-}
-
-#[test]
-fn test_dimension_expr_add_dimension() {
-    let expr = (pct(100) - px(20)) + px(10);
-    assertr::assert_that!(expr.to_string()).is_equal_to("calc((100% - 20px) + 10px)".to_string());
-}
-
-#[test]
-fn test_dimension_expr_add_expr() {
-    let a = CssDimensionExpr::from(px(10));
-    let b = CssDimensionExpr::from(px(5));
-    let result = a + b;
-    assertr::assert_that!(result.to_string()).is_equal_to("15px".to_string());
+#[should_panic(expected = "CSS divisor must not be zero")]
+fn division_by_zero_panics() {
+    let _ = px(1) / 0;
 }

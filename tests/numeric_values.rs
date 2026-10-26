@@ -1,229 +1,97 @@
-//! Public-surface tests for numeric values.
+//! Public-surface tests for numbers, angles, times, and CSS-wide keywords.
 
 use assertr::prelude::*;
-use leptos_css::*;
+use typed_css::*;
 
-fn finite(value: f64) -> FiniteF64 {
-    FiniteF64::new(value)
+#[test]
+fn angle_helpers_return_angles_in_every_unit() {
+    assert_that!(deg(45)).has_display_value("45deg");
+    assert_that!(rad(1.5)).has_display_value("1.5rad");
+    assert_that!(turn(0.25)).has_display_value("0.25turn");
+    assert_that!(grad(100)).has_display_value("100grad");
+    assert_that!(-deg(90)).has_display_value("-90deg");
 }
 
 #[test]
-fn test_css_angle_write_to() {
-    let cases = [
-        (CssAngle::Deg(finite(45.0)), "45deg"),
-        (CssAngle::Rad(finite(2.5)), "2.5rad"),
-        (CssAngle::Turn(finite(0.5)), "0.5turn"),
-        (CssAngle::Grad(finite(200.0)), "200grad"),
-    ];
-    for (angle, expected) in cases {
-        let mut buf = String::new();
-        angle.write_to(&mut buf);
-        assertr::assert_that!(buf).is_equal_to(expected.to_string());
-    }
+fn time_helpers_return_times() {
+    assert_that!(s(0.3)).has_display_value("0.3s");
+    assert_that!(ms(300)).has_display_value("300ms");
+    assert_that!(-ms(10)).has_display_value("-10ms");
 }
 
 #[test]
-fn test_css_time_write_to() {
-    let cases = [
-        (CssTime::S(finite(0.3)), "0.3s"),
-        (CssTime::Ms(finite(300.0)), "300ms"),
-    ];
-    for (time, expected) in cases {
-        let mut buf = String::new();
-        time.write_to(&mut buf);
-        assertr::assert_that!(buf).is_equal_to(expected.to_string());
-    }
+fn fallible_angle_and_time_constructors_reject_non_finite_values() {
+    assert_that!(Angle::try_deg(f64::NAN)).is_err();
+    assert_that!(Angle::try_rad(f64::INFINITY)).is_err();
+    assert_that!(Angle::try_turn(f64::NEG_INFINITY)).is_err();
+    assert_that!(Angle::try_grad(f64::NAN)).is_err();
+    assert_that!(Time::try_s(f64::NAN)).is_err();
+    assert_that!(Time::try_ms(f64::INFINITY)).is_err();
+    assert_that!(Angle::try_deg(30.0).unwrap()).has_display_value("30deg");
 }
 
 #[test]
-fn test_css_value_write_to() {
-    let cases: Vec<(CssValue, &str)> = vec![
-        (CssValue::Number(finite(0.5)), "0.5"),
-        (CssValue::Integer(10), "10"),
-        (CssValue::Length(CssLength::Px(finite(100.0))), "100px"),
-        (CssValue::Percent(finite(50.0)), "50%"),
-        (CssValue::Angle(CssAngle::Deg(finite(90.0))), "90deg"),
-        (CssValue::Time(CssTime::S(finite(0.3))), "0.3s"),
-        (CssValue::Fr(NonNegativeFiniteF64::new(1.0)), "1fr"),
-        (CssValue::Auto, "auto"),
-        (CssValue::Zero, "0px"),
-        (CssValue::Inherit, "inherit"),
-        (CssValue::Initial, "initial"),
-        (CssValue::Unset, "unset"),
-        (CssValue::Revert, "revert"),
-        (CssValue::RevertLayer, "revert-layer"),
-    ];
-    for (value, expected) in cases {
-        let mut buf = String::new();
-        value.write_to(&mut buf);
-        assertr::assert_that!(buf).is_equal_to(expected.to_string());
-    }
-}
-
-#[test]
-fn test_css_value_display() {
-    assertr::assert_that!(px(10.0).to_string()).is_equal_to("10px".to_string());
-    assertr::assert_that!(em(1.5).to_string()).is_equal_to("1.5em".to_string());
-    assertr::assert_that!(pct(50.0).to_string()).is_equal_to("50%".to_string());
-    assertr::assert_that!(deg(45.0).to_string()).is_equal_to("45deg".to_string());
-    assertr::assert_that!(CssValue::Auto.to_string()).is_equal_to("auto".to_string());
-    assertr::assert_that!(CssValue::Zero.to_string()).is_equal_to("0px".to_string());
-}
-
-#[test]
-fn test_integer_accepts_i32() {
-    let v = CssValue::Integer(42);
-    assertr::assert_that!(format!("{v}")).is_equal_to("42".to_string());
-}
-
-#[test]
-fn test_from_i32() {
-    let v: CssValue = 42_i32.into();
-    assertr::assert_that!(v.to_string()).is_equal_to("42".to_string());
-}
-
-#[test]
-fn test_neg_css_angle() {
-    assertr::assert_that!((-CssAngle::Deg(finite(90.0))).to_string())
-        .is_equal_to("-90deg".to_string());
-}
-
-#[test]
-fn test_neg_css_time() {
-    assertr::assert_that!((-CssTime::Ms(finite(300.0))).to_string())
-        .is_equal_to("-300ms".to_string());
-}
-
-#[test]
-fn test_global_keywords() {
-    assertr::assert_that!(CssValue::Inherit.to_string()).is_equal_to("inherit".to_string());
-    assertr::assert_that!(CssValue::Initial.to_string()).is_equal_to("initial".to_string());
-    assertr::assert_that!(CssValue::Unset.to_string()).is_equal_to("unset".to_string());
-    assertr::assert_that!(CssValue::Revert.to_string()).is_equal_to("revert".to_string());
-    assertr::assert_that!(CssValue::RevertLayer.to_string())
-        .is_equal_to("revert-layer".to_string());
-}
-
-#[test]
-fn test_finite_f64_try_new() {
-    assertr::assert_that!(FiniteF64::try_new(12.5).expect("finite value").get()).is_equal_to(12.5);
-    assert!(matches!(
-        FiniteF64::try_new(f64::NAN),
-        Err(InvalidCssNumber::NonFinite { .. })
-    ));
-    assert!(matches!(
-        FiniteF64::try_new(f64::INFINITY),
-        Err(InvalidCssNumber::NonFinite { .. })
-    ));
-}
-
-#[test]
-fn test_fallible_numeric_constructors() {
-    assertr::assert_that!(try_px(12.5).expect("finite px").to_string())
-        .is_equal_to("12.5px".to_string());
-    assertr::assert_that!(
-        CssDimension::try_pct(25.0)
-            .expect("finite percentage")
-            .to_string()
-    )
-    .is_equal_to("25%".to_string());
-    assertr::assert_that!(try_number(0.75).expect("finite number").to_string())
-        .is_equal_to("0.75".to_string());
-
-    assert!(matches!(
-        try_px(f64::NAN),
-        Err(InvalidCssNumber::NonFinite { context: "px", .. })
-    ));
-    assert!(matches!(
-        try_pct(f64::INFINITY),
-        Err(InvalidCssNumber::NonFinite { context: "%", .. })
-    ));
-    assert!(matches!(
-        try_number(f64::NEG_INFINITY),
-        Err(InvalidCssNumber::NonFinite {
-            context: "number",
-            ..
-        })
-    ));
-}
-
-#[test]
-fn test_try_from_f64_for_css_value() {
-    let value = CssValue::try_from(1.25).expect("finite CSS number");
-    assertr::assert_that!(value.to_string()).is_equal_to("1.25".to_string());
-    assert!(CssValue::try_from(f64::NAN).is_err());
-}
-
-#[test]
-fn test_fallible_constrained_constructors() {
-    assert!(matches!(
-        try_fr(-1.0),
-        Err(InvalidCssNumber::Negative {
-            context: "non-negative number",
-            ..
-        })
-    ));
-    assert!(matches!(
-        try_rgba(0, 0, 0, 1.5),
-        Err(InvalidCssNumber::OutOfRange {
-            context: "unit interval",
-            ..
-        })
-    ));
-    assert!(matches!(
-        try_hsl(0.0, f64::NAN, 50.0),
-        Err(InvalidCssNumber::NonFinite {
-            context: "percentage channel",
-            ..
-        })
-    ));
-    assert!(matches!(
-        try_hsla(0.0, 50.0, 50.0, 2.0),
-        Err(InvalidCssNumber::OutOfRange {
-            context: "unit interval",
-            ..
-        })
-    ));
+fn angles_and_times_are_const_constructible() {
+    const TILT: Angle = Angle::deg(3.0);
+    const FADE: Time = Time::ms(150.0);
+    assert_that!(TILT).has_display_value("3deg");
+    assert_that!(FADE).has_display_value("150ms");
 }
 
 #[test]
 #[should_panic(expected = "CSS deg value must be finite")]
-fn test_deg_nan_panics() {
+fn deg_nan_panics() {
     let _ = deg(f64::NAN);
 }
 
 #[test]
-#[should_panic(expected = "CSS rad value must be finite")]
-fn test_rad_infinity_panics() {
-    let _ = rad(f64::NEG_INFINITY);
-}
-
-#[test]
-#[should_panic(expected = "CSS turn value must be finite")]
-fn test_turn_nan_panics() {
-    let _ = turn(f64::NAN);
-}
-
-#[test]
-#[should_panic(expected = "CSS grad value must be finite")]
-fn test_grad_nan_panics() {
-    let _ = grad(f64::NAN);
-}
-
-#[test]
-#[should_panic(expected = "CSS s value must be finite")]
-fn test_s_nan_panics() {
-    let _ = s(f64::NAN);
-}
-
-#[test]
 #[should_panic(expected = "CSS ms value must be finite")]
-fn test_ms_infinity_panics() {
+fn ms_infinity_panics() {
     let _ = ms(f64::INFINITY);
 }
 
 #[test]
-#[should_panic(expected = "CSS non-negative number must be non-negative")]
-fn test_fr_negative_panics() {
-    let _ = fr(-1.0);
+fn finite_numbers_reject_nan_and_infinity() {
+    assert_that!(Number::try_new(f64::NAN)).is_err();
+    assert_that!(Number::try_from(1.5).unwrap()).has_display_value("1.5");
+    assert_that!(f64::from(Number::new(2.0))).is_equal_to(2.0);
+}
+
+#[test]
+fn constrained_numbers_report_their_violation() {
+    assert_that!(NonNegativeNumber::try_new(-1.0)).is_equal_to(Err(InvalidNumber::Negative {
+        value: -1.0,
+        context: "number",
+    }));
+    assert_that!(UnitInterval::try_new(1.5)).is_equal_to(Err(InvalidNumber::OutOfRange {
+        value: 1.5,
+        context: "unit interval",
+        min: 0.0,
+        max: 1.0,
+    }));
+    assert_that!(PercentageChannel::try_new(101.0)).is_err();
+    assert_that!(PercentageChannel::new(50.0)).has_display_value("50%");
+    assert_that!(NonNegativeNumber::new(3)).has_display_value("3");
+}
+
+#[test]
+fn global_keywords_serialize() {
+    let cases = [
+        (GlobalKeyword::Inherit, "inherit"),
+        (GlobalKeyword::Initial, "initial"),
+        (GlobalKeyword::Unset, "unset"),
+        (GlobalKeyword::Revert, "revert"),
+        (GlobalKeyword::RevertLayer, "revert-layer"),
+    ];
+    for (keyword, expected) in cases {
+        assert_that!(keyword).has_display_value(expected);
+    }
+}
+
+#[test]
+fn to_css_appends_to_an_existing_buffer() {
+    let mut buffer = String::from("width:");
+    px(16).to_css(&mut buffer).unwrap();
+    assert_that!(buffer).is_equal_to("width:16px");
+    assert_that!(rem(2).to_css_string()).is_equal_to("2rem");
 }

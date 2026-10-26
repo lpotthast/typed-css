@@ -1,63 +1,58 @@
 use std::fmt;
 
-use crate::checked_value::impl_checked_value;
-use crate::serialization::CssWriteTo;
+use crate::serialization::write_spaced_keywords;
 
-/// A horizontal panning component of the `touch-action` grammar.
-///
-/// [Pointer Events Level 4 `touch-action` grammar]: https://www.w3.org/TR/pointerevents4/#the-touch-action-css-property
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum TouchActionHorizontalPan {
-    /// `pan-x`.
-    PanX,
-    /// `pan-left`.
-    PanLeft,
-    /// `pan-right`.
-    PanRight,
-}
+use crate::auto::auto_sources;
+use crate::checked_value::{impl_checked_value, impl_display, keyword_enum};
+use crate::custom_property::declaration_sources;
+use crate::property::definition::property_keywords;
+use crate::serialization::ToCss;
 
-impl CssWriteTo for TouchActionHorizontalPan {
-    fn css_fmt<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
-        w.write_str(match self {
-            Self::PanX => "pan-x",
-            Self::PanLeft => "pan-left",
-            Self::PanRight => "pan-right",
-        })
+keyword_enum! {
+    /// A horizontal panning gesture that `touch-action` can allow.
+    ///
+    /// [Pointer Events Level 4 `touch-action`](https://www.w3.org/TR/pointerevents4/#the-touch-action-css-property)
+    pub enum TouchActionHorizontalPan {
+        /// Panning in both horizontal directions.
+        PanX => "pan-x",
+        /// Panning that starts by moving the finger to the left.
+        PanLeft => "pan-left",
+        /// Panning that starts by moving the finger to the right.
+        PanRight => "pan-right",
     }
 }
 
-/// A vertical panning component of the `touch-action` grammar.
-///
-/// [Pointer Events Level 4 `touch-action` grammar]: https://www.w3.org/TR/pointerevents4/#the-touch-action-css-property
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum TouchActionVerticalPan {
-    /// `pan-y`.
-    PanY,
-    /// `pan-up`.
-    PanUp,
-    /// `pan-down`.
-    PanDown,
-}
-
-impl CssWriteTo for TouchActionVerticalPan {
-    fn css_fmt<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
-        w.write_str(match self {
-            Self::PanY => "pan-y",
-            Self::PanUp => "pan-up",
-            Self::PanDown => "pan-down",
-        })
+keyword_enum! {
+    /// A vertical panning gesture that `touch-action` can allow.
+    ///
+    /// [Pointer Events Level 4 `touch-action`](https://www.w3.org/TR/pointerevents4/#the-touch-action-css-property)
+    pub enum TouchActionVerticalPan {
+        /// Panning in both vertical directions.
+        PanY => "pan-y",
+        /// Panning that starts by moving the finger up.
+        PanUp => "pan-up",
+        /// Panning that starts by moving the finger down.
+        PanDown => "pan-down",
     }
 }
 
-/// A non-empty composition of panning and pinch-zoom gestures for `touch-action`.
+/// A combination of the panning and pinch-zoom gestures that `touch-action` allows.
 ///
-/// Horizontal and vertical panning come from Pointer Events Level 4. The WHATWG Compatibility
-/// Standard augments that grammar with the independently composable `pinch-zoom` keyword.
+/// A combination contains at least one gesture, because every constructor starts with one.
+/// Pointer Events Level 4 defines the panning gestures. The WHATWG Compatibility Standard adds
+/// `pinch-zoom`.
 ///
-/// [Pointer Events Level 4 `touch-action` grammar]: https://www.w3.org/TR/pointerevents4/#the-touch-action-css-property
-/// [WHATWG Compatibility `touch-action` extension]: https://compat.spec.whatwg.org/#touch-action
+/// ```rust
+/// use typed_css::{TouchActionGestures, TouchActionHorizontalPan, TouchActionVerticalPan};
+///
+/// let gestures = TouchActionGestures::horizontal(TouchActionHorizontalPan::PanX)
+///     .with_vertical(TouchActionVerticalPan::PanY)
+///     .with_pinch_zoom();
+/// assert_eq!(gestures.to_string(), "pan-x pan-y pinch-zoom");
+/// ```
+///
+/// [Pointer Events Level 4 `touch-action` grammar](https://www.w3.org/TR/pointerevents4/#the-touch-action-css-property)
+/// [WHATWG Compatibility `touch-action` extension](https://compat.spec.whatwg.org/#touch-action)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TouchActionGestures {
     horizontal: Option<TouchActionHorizontalPan>,
@@ -66,7 +61,8 @@ pub struct TouchActionGestures {
 }
 
 impl TouchActionGestures {
-    /// Start a gesture composition with horizontal panning.
+    /// Start a combination with horizontal panning.
+    #[must_use]
     pub const fn horizontal(horizontal: TouchActionHorizontalPan) -> Self {
         Self {
             horizontal: Some(horizontal),
@@ -75,7 +71,8 @@ impl TouchActionGestures {
         }
     }
 
-    /// Start a gesture composition with vertical panning.
+    /// Start a combination with vertical panning.
+    #[must_use]
     pub const fn vertical(vertical: TouchActionVerticalPan) -> Self {
         Self {
             horizontal: None,
@@ -84,7 +81,8 @@ impl TouchActionGestures {
         }
     }
 
-    /// Start a gesture composition with pinch zooming.
+    /// Start a combination with pinch zooming.
+    #[must_use]
     pub const fn pinch_zoom() -> Self {
         Self {
             horizontal: None,
@@ -93,21 +91,21 @@ impl TouchActionGestures {
         }
     }
 
-    /// Add or replace the horizontal panning component.
+    /// Add or replace the horizontal panning gesture.
     #[must_use]
     pub const fn with_horizontal(mut self, horizontal: TouchActionHorizontalPan) -> Self {
         self.horizontal = Some(horizontal);
         self
     }
 
-    /// Add or replace the vertical panning component.
+    /// Add or replace the vertical panning gesture.
     #[must_use]
     pub const fn with_vertical(mut self, vertical: TouchActionVerticalPan) -> Self {
         self.vertical = Some(vertical);
         self
     }
 
-    /// Add pinch zooming to the gesture composition.
+    /// Add pinch zooming.
     #[must_use]
     pub const fn with_pinch_zoom(mut self) -> Self {
         self.pinch_zoom = true;
@@ -115,50 +113,31 @@ impl TouchActionGestures {
     }
 }
 
-impl CssWriteTo for TouchActionGestures {
-    fn css_fmt<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
-        let mut has_previous = false;
-
-        if let Some(horizontal) = self.horizontal {
-            horizontal.css_fmt(w)?;
-            has_previous = true;
-        }
-        if let Some(vertical) = self.vertical {
-            if has_previous {
-                w.write_char(' ')?;
-            }
-            vertical.css_fmt(w)?;
-            has_previous = true;
-        }
-        if self.pinch_zoom {
-            if has_previous {
-                w.write_char(' ')?;
-            }
-            w.write_str("pinch-zoom")?;
-        }
-
-        Ok(())
+impl ToCss for TouchActionGestures {
+    fn to_css<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
+        let gestures = [
+            self.horizontal.map(TouchActionHorizontalPan::as_str),
+            self.vertical.map(TouchActionVerticalPan::as_str),
+            self.pinch_zoom.then_some("pinch-zoom"),
+        ];
+        write_spaced_keywords(w, gestures.into_iter().flatten())
     }
 }
 
-/// A standards-valid `touch-action` value.
+/// A `touch-action` value, which says which touch gestures the browser handles itself.
 ///
-/// Pointer Events Level 4 defines the property keywords and the horizontal and vertical panning
-/// components. The WHATWG Compatibility Standard adds `pinch-zoom` to the composable gesture
-/// branch represented by [`TouchActionGestures`].
-///
-/// [Pointer Events Level 4 `touch-action` grammar]: https://www.w3.org/TR/pointerevents4/#the-touch-action-css-property
-/// [WHATWG Compatibility `touch-action` extension]: https://compat.spec.whatwg.org/#touch-action
+/// [Pointer Events Level 4 `touch-action` grammar](https://www.w3.org/TR/pointerevents4/#the-touch-action-css-property)
+/// [WHATWG Compatibility `touch-action` extension](https://compat.spec.whatwg.org/#touch-action)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum TouchAction {
-    /// `auto`.
+    /// `auto`. The browser handles every gesture.
     Auto,
-    /// `none`.
+    /// `none`. The browser handles no gesture, so that the page can handle all of them.
     None,
-    /// `manipulation`.
+    /// `manipulation`. The browser handles panning and pinch zooming, but not double-tap zooming.
     Manipulation,
-    /// A non-empty combination of horizontal panning, vertical panning, and pinch zooming.
+    /// A combination of panning and pinch-zoom gestures.
     Gestures(TouchActionGestures),
 }
 
@@ -168,20 +147,35 @@ impl From<TouchActionGestures> for TouchAction {
     }
 }
 
-impl CssWriteTo for TouchAction {
-    fn css_fmt<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
+declaration_sources!(TouchAction: TouchActionGestures);
+
+impl ToCss for TouchAction {
+    fn to_css<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
         match self {
             Self::Auto => w.write_str("auto"),
             Self::None => w.write_str("none"),
             Self::Manipulation => w.write_str("manipulation"),
-            Self::Gestures(value) => value.css_fmt(w),
+            Self::Gestures(value) => value.to_css(w),
         }
     }
 }
 
-impl_checked_value!(
-    TouchActionHorizontalPan,
-    TouchActionVerticalPan,
-    TouchActionGestures,
-    TouchAction,
-);
+auto_sources!(TouchAction => Self::Auto);
+
+impl_display!(TouchActionGestures, TouchAction,);
+impl_checked_value!(TouchAction);
+
+property_keywords! {
+    TouchAction {
+        auto: "auto" => TouchAction::Auto,
+        none: "none" => TouchAction::None,
+        manipulation: "manipulation" => TouchAction::Manipulation,
+        pan_x: "pan-x" => TouchActionGestures::horizontal(TouchActionHorizontalPan::PanX),
+        pan_left: "pan-left" => TouchActionGestures::horizontal(TouchActionHorizontalPan::PanLeft),
+        pan_right: "pan-right" => TouchActionGestures::horizontal(TouchActionHorizontalPan::PanRight),
+        pan_y: "pan-y" => TouchActionGestures::vertical(TouchActionVerticalPan::PanY),
+        pan_up: "pan-up" => TouchActionGestures::vertical(TouchActionVerticalPan::PanUp),
+        pan_down: "pan-down" => TouchActionGestures::vertical(TouchActionVerticalPan::PanDown),
+        pinch_zoom: "pinch-zoom" => TouchActionGestures::pinch_zoom(),
+    }
+}

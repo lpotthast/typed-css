@@ -1,152 +1,195 @@
 # Repository guidance
 
-## Common commands
+`typed-css` is a single-crate library that writes CSS declarations from checked Rust values. `Cargo.toml` lists the
+development-only files that the published package excludes.
 
-Day-to-day work goes through `just`; recipes live in `Justfile`. After installing `just`, run `just once` for the
-one-time setup (`enable-wasm` and `install-tools`).
+## Commands
 
-| Task | Command |
-| --- | --- |
-| Format | `just fmt` |
-| Type-check native targets | `just check` |
-| Type-check `wasm32-unknown-unknown` | `just check-wasm` |
-| Clippy with warnings denied | `just clippy` |
-| Unit tests only | `just test-lib` |
-| Doc tests only | `just test-doc` |
-| Native test bundle | `just test` |
-| Build documentation with warnings denied | `just doc` |
-| Main pre-PR verification bundle | `just verify` |
+Day-to-day work goes through `just`, and the recipes live in the `Justfile`. After installing `just`, run `just once`
+for the one-time setup (`enable-wasm` and `install-tools`).
 
-`just verify` runs format checking, native and WASM checks, Clippy, native tests (including doc tests), and the
-warning-denied documentation build. CI additionally runs a locked release build, pins an MSRV check to Rust 1.89.0,
-and has a blocking `cargo-deny` job. `cargo-semver-checks` remains non-blocking until version 0.1.0 provides a registry
-baseline. CI sets `RUSTFLAGS=-D warnings` globally and `RUSTDOCFLAGS=-D warnings` for documentation, so new compiler
-and Rustdoc warnings fail their respective blocking jobs.
+| Task                                       | Command                |
+|--------------------------------------------|------------------------|
+| Format                                     | `just fmt`             |
+| Update dependencies, sort, and format      | `just tidy`            |
+| Type-check with all features               | `just check`           |
+| Type-check without the `leptos` feature    | `just check-no-leptos` |
+| Type-check for `wasm32-unknown-unknown`    | `just check-wasm`      |
+| Run Clippy with warnings denied            | `just clippy`          |
+| Run unit tests                             | `just test-lib`        |
+| Run doc tests                              | `just test-doc`        |
+| Run all native tests                       | `just test`            |
+| Build the documentation, warnings denied   | `just doc`             |
+| Run the full verification before a change  | `just verify`          |
+
+`just verify` changes no files. It checks the formatting and the order of the dependencies in `Cargo.toml`. It
+type-checks with and without the `leptos` feature and for WASM, and runs Clippy and the native tests in both feature
+shapes. It also builds the documentation with warnings denied. CI additionally
+runs a locked release build, checks the MSRV with Rust 1.89.0, and runs `cargo-deny` as a blocking job.
+`cargo-semver-checks` runs too, but does not block. While the crate is below 1.0, a breaking release bumps the minor
+version. CI sets `RUSTFLAGS=-D warnings` and `RUSTDOCFLAGS=-D warnings`, so every new compiler or Rustdoc warning fails
+CI.
 
 ## Architecture
 
-This is the single-crate `leptos-css` library. `Cargo.toml` is the source of truth for the development-only files
-excluded from the published package.
+### Modules
 
-### Module purity
+A module holds one concept and everything about it: its types, invariants, conversions, serialization, and checked
+registration. Name a module after its concept, as a noun. Do not create grab-bag modules such as `utils` or `helpers`.
+Use the narrowest visibility that works, which is `pub(crate)` unless an item belongs to the published API.
 
-A pure module owns exactly one concept. Code, docs, and tests respect that ownership; downstream callers reason
-against the module's contract rather than its implementation.
+`lib.rs` is the public facade. Every public value type has one import path at the crate root, and the property
+constants live in `typed_css::property`. Concept modules are private, so adding an implementation detail never adds
+to the public API by accident.
 
-#### Structural purity
+- `serialization.rs` defines the open `ToCss` trait. Any type may implement it. The module also holds the
+  crate-private `same_css`, which compares the text of two values without allocating, and `write_pair`, which writes
+  the two values of a shorthand such as `gap` and leaves out a second value with the same text.
+- `checked_value.rs` defines the sealed `CheckedValue` trait. Only the value types of properties and the primitives
+  that custom properties hold implement it, and only those types can be declared. The module also holds three
+  crate-private macros. `impl_checked_value!` marks a type as checked, `impl_display!` implements `Display` through
+  `ToCss`, and `keyword_enum!` defines an enum of keywords with both traits except the checked mark. When every
+  variant of a `keyword_enum!` names a method with `as`, the macro also generates the keyword methods of the
+  properties.
+- `number`, `length`, `percentage`, `angle`, and `time` hold the primitive values and their unit helpers. The
+  crate-private `dimension!` macro in `number.rs` defines `Length`, `Angle`, and `Time` with the same constructors,
+  accessors, and operators, and `unit_functions!` defines their free functions, such as `px` and `deg`.
+- `length_percentage.rs` holds `LengthPercentage` with its private expression tree, the arithmetic and math functions,
+  `NonNegativeLengthPercentage`, and `LengthPercentageAuto`. Its crate-private `length_percentage_sources!` macro lets
+  a grammar accept lengths, percentages, and their `var()` references directly.
+- `custom_property.rs` holds `CustomProperty<T>`, its name validation, `DeclarationValue<T>`, `Var<T>` with `var()` and
+  `var_or()`, and the crate-private `declaration_sources!` macro. Other modules must not implement behavior of these
+  types.
+- `declaration.rs` holds `Declaration`. Its fields are private, so the property and the value cannot be separated.
+  Behind the `leptos` feature, the module also implements Leptos' `IntoStyle` for `Declaration`.
+- `property_name.rs` holds the crate-private `PropertyName`, which is a static name or a shared `Arc<str>`.
+  `Declaration` and `CustomProperty` store it, so that copying a name created at runtime only counts a reference.
+- `property/definition.rs` holds `Property<T>`. Only this crate can create one. `property/mod.rs` is the catalog, one
+  `properties!` table of constants with the name and the specification link of each property.
+- `property/definition.rs` also holds the crate-private `property_keywords!` macro. A concept module calls it next
+  to its grammar, so that each keyword becomes a method on the properties of that grammar, such as `DISPLAY.grid()`.
+- `auto.rs` holds `Auto` and the crate-private `auto_sources!` macro. A grammar with an `auto` keyword calls the
+  macro in its own module, so that properties accept `Auto` directly. Its `@conversions_only` form is for parts of a
+  grammar that are not checked values.
+- Each property grammar lives in a concept module, such as `box_model`, `sizing`, `gap`, `display`, `position`,
+  `overflow`, `flexbox`, `alignment`, `grid`, `transform`, `color`, `typography`, `text`, `text_decoration`,
+  `user_interface`, `touch_action`, `color_adjust`, `view_transition`, `opacity`, and `stacking`.
 
-1. One concept per module, named by what the concept is. Prefer nouns; `utils`, `helpers`, `common`, `shared`, and
-   `misc` signal missing ownership rather than a coherent concept.
-2. Put invariants at the boundary that enforces them. Validation belongs in the validated type's constructor. Once a
-   value crosses a module boundary, downstream code should trust the invariant instead of re-validating it.
-3. Default to the narrowest visibility that works. Use `pub(crate)` by default and `pub` only for the published,
-   versioned surface.
-4. Give each piece of logic one home. Shared operations belong to the module that owns the type they operate on.
+### Invariants
 
-#### Documentary purity
+- Constructors reject invalid numbers, such as `NaN`, infinity, or a value outside the allowed range, before the value
+  can reach CSS text. A convenience constructor such as `px` panics. Its fallible counterpart, such as
+  `Length::try_px`, returns an error for runtime-derived input.
+- `Length`, `Percentage`, and `LengthPercentage` model `<length>`, `<percentage>`, and `<length-percentage>`. A grammar
+  that also accepts `auto`, such as `margin`, uses `LengthPercentageAuto`. A grammar that accepts only non-negative
+  values, such as `padding`, uses `NonNegativeLengthPercentage`. It writes a negative length or percentage inside
+  `calc()`, so that the browser clamps it instead of ignoring the declaration. Calculations are clamped the same way.
+  It writes a `var()` or an `env()` as it is, because `calc(var(--x))` becomes invalid when `--x` is a unitless `0`.
+  Never reject a calculation because one of its terms is negative.
+- Shorthands such as `Padding`, `BorderRadius`, `Gap`, `Overflow`, and `Flex` store every component and are written
+  in the shortest equivalent form.
+- Mark a type with `impl_checked_value!` only if a property takes it or a custom property commonly holds it. Parts
+  of a grammar, such as `TrackSize` or `RepeatCount`, are not checked values. CSS-wide keywords are not checked values
+  either, because a custom property never holds one as its value. `declare_global` and the methods of the crate-private
+  `global_keyword_methods!` macro, such as `inherit`, take them instead. A `property_keywords!` table must not use
+  the name of a CSS-wide keyword, because every property already has that method.
+- When a type converts into a grammar, also convert it into the grammar's `DeclarationValue` with
+  `declaration_sources!`, so that properties accept it directly.
+- When a grammar gains a keyword, add the keyword to the grammar's `property_keywords!` table, or name its method with
+  `as` in the grammar's `keyword_enum!`. The methods cover every value with fixed CSS text and no arguments that the
+  property accepts directly. Colors are left out, because they
+  would bury the other methods. The test `every_keyword_method_writes_its_keyword` lists each table and checks that
+  each method writes its keyword. A keyword that a shorthand writes in another form, such as `flex-flow: nowrap`,
+  gets no method.
+- A `From` between two checked value types must keep the meaning of the CSS text. A `var()` of the source type
+  converts into the target type, so the browser reads the source text in the target property. `CornerRadius` does
+  not convert into `BorderRadius`, for example, because `4px 2px` means one ellipse in a corner longhand but two
+  circular corners in `border-radius`. A grammar that only accepts non-negative values may convert from
+  `NonNegativeLengthPercentage`, and other grammars must not. The test
+  `every_property_accepts_the_common_parts_of_its_grammar` covers each grammar.
+- `CustomProperty<T>` checks its name and fixes one grammar `T`. `var()` and `var_or()` take a `CustomProperty`, and a
+  fallback must have the same grammar. Do not add constructors that take a raw name or an untyped fallback.
+- No type accepts arbitrary CSS text, and no type converts into a property name that could be paired with any value.
+  Typed values do not implement Leptos' `IntoStyleValue`. Implementing `ToCss` must never make a type declarable.
+- Every public enum with variants is `#[non_exhaustive]`, so a `match` in examples or downstream code needs a wildcard
+  arm. The empty `GlobalKeywordsOnly` has no variants to add.
+- Shorthands with two values, such as `Gap`, `Overflow`, and `PaddingAxis`, have `both` for one repeated value, `new`
+  for two values, and a `with_` method for each value.
+- Every public item has a doc comment. `missing_docs = "warn"` becomes an error in the warning-denied Rustdoc job.
+- Clippy's `pedantic` group is denied, and `Cargo.toml` allows no lint. Satisfy a lint where it fires. If a lint is
+  wrong in one place, use `#[expect(lint, reason = "...")]` on the smallest item and say why.
 
-Doc comments describe a module's own types and functions in that module's vocabulary. They do not name callers in an
-upper layer, expose lower-layer implementation details, or explain how another module consumes their outputs.
+### Compatibility
 
-1. State the module contract on the first line of its module-level documentation.
-2. Reference downward or sideways, not upward: a module may name direct collaborators it imports, but not modules
-   that import it.
-3. Do not leak a callee's internals into caller-facing documentation.
-4. Public top-level types are shared vocabulary and may be referenced across layers when useful.
-5. These rules apply to Rust doc comments (`///` and `//!`), not implementation comments (`//`) or tested panic/error
-   strings.
-
-### Module layout (`src/`)
-
-`lib.rs` is an explicit public facade. Shared values and stored declarations have one canonical import path at the
-crate root; property selectors live under `leptos_css::property`. Internal concept modules are private so adding an
-implementation detail never implicitly expands the published root API.
-
-- `serialization.rs` owns the open, serialization-only `CssWriteTo` capability. `checked_value.rs` separately owns
-  the sealed `CheckedCssValue` eligibility boundary and the crate-private macro that opts a validated grammar into
-  checked declarations and `Display`.
-- Numeric constraints, primitive values, expression trees, and property-specific grammars each live in a concept
-  module: `number`, `length`, `angle`, `time`, `color`, `dimension`, `box_model`, `gap`, `sizing`, `touch_action`,
-  `color_adjust`, `view_transition`, `opacity`, `stacking`, and `typography`. Keep a type's constructors,
-  serialization, operators, checked registration, and focused tests with the type rather than in a horizontal
-  catch-all module.
-- `custom_property.rs` owns custom-property name validation, `CssCustomProperty<T>`, `DeclarationValue<T>`, typed
-  `var()` references, and custom-property assignment. Do not implement its inherent behavior from another module.
-- `declaration.rs` owns the unforgeable `CheckedDeclaration` boundary and its direct Leptos `IntoStyle` adapter. A
-  declaration retains its checked property/value pairing even when stored heterogeneously.
-- `property/name.rs` generates the `#[non_exhaustive]` `PropertyName` catalog and kebab-case mapping from one table.
-  `property/selector.rs` owns the narrower checked declaration surface. Its crate-private `typed_property!` macro
-  generates inherent selector APIs such as `TouchActionProperty::declare`; there is no public generic selector trait.
-  `PropertyName` variants are intentionally exempt from individual missing-doc warnings because their names are the
-  documentation; do not generalize that exemption.
-
-### Invariants worth preserving
-
-- Floating-point constructors such as `px`, `pct`, `deg`, `s`, and `hsl` reject invalid input at construction time,
-  before a value can reach rendered CSS. Panicking convenience constructors reject non-finite or out-of-range values;
-  use their fallible `try_*` counterparts for runtime-derived input.
-- `CssDimension` models only `<length-percentage>`. Grammars that permit `auto`, such as margin and inset, use
-  `LengthPercentageAuto`; grammars that require non-negative direct values, such as padding and gap, use the
-  non-negative wrapper types. Range-restricted calculations remain valid because CSS clamps them after evaluation.
-  Do not weaken these property-specific constraints or reject calculations based on their unevaluated terms.
-- `CssCustomProperty<T>` validates a `--`-prefixed name and fixes one grammar `T`. `var()` accepts only a typed custom
-  property plus a matching mandatory fallback. Do not add raw-name or fallback-free constructors to the checked API.
-- Preserve the checked boundary's concrete escape-hatch restrictions: `CssValue` has no arbitrary-string variant,
-  typed primitives do not implement Leptos `IntoStyleValue`, `PropertyName` does not implement `AsRef<str>`, and
-  `CheckedDeclaration` has no public raw constructor. Implementing the open `CssWriteTo` trait must not grant access
-  to `CheckedCssValue` or checked declarations.
-- Keep every public enum `#[non_exhaustive]`. Downstream-facing matches and examples must include a wildcard arm.
-- Public items must retain doc comments. `missing_docs = "warn"` becomes an error in the warning-denied Rustdoc CI job.
-- `clippy::pedantic` is denied crate-wide. The allow-list in `Cargo.toml` is deliberate; extend it only when a warning
-  is genuinely noise, and otherwise satisfy the lint locally.
-
-### Compatibility constraints
-
-- The MSRV is Rust 1.89.0 and is enforced in CI. Do not use newer standard-library APIs or language features unless
-  the MSRV is intentionally bumped in `Cargo.toml`, the README, and CI together.
-- `Cargo.toml` currently requires `leptos = "0.8.19"` with default features disabled. `CheckedDeclaration` uses Leptos
-  Tachys style-rendering primitives for its adapter.
-- Coordinate Leptos dependency and `nightly` feature changes with `leptos-styles` so the related crates remain in
-  lockstep and do not introduce duplicate Leptos versions into downstream lockfiles.
+- The MSRV is Rust 1.89.0, and CI checks it. Do not use newer language features or standard-library APIs unless the
+  MSRV is bumped in `Cargo.toml`, the README, and CI together.
+- Leptos is an optional dependency behind the `leptos` feature, which is off by default. Keep the default build free
+  of dependencies and of framework-specific code. Leptos code belongs behind `#[cfg(feature = "leptos")]` in
+  `declaration.rs`. The `just` recipes and CI build with `--all-features`, and the `*-no-leptos` recipes cover the
+  default build.
+- `Cargo.toml` requires `leptos = "0.8.22"` with default features disabled. Change the Leptos version together with
+  `leptos-styles`, so that a downstream lockfile does not end up with two Leptos versions.
 
 ## CSS support policy
 
-- Target modern CSS. Partial property coverage is intentional; never claim that the crate covers every property in
-  the CSS property index.
-- Treat property-specific selector APIs as the checked declaration surface. `PropertyName` is only a curated property-name
-  catalog, and `CssValue` is only a heterogeneous primitive-value container.
-- Keep checked APIs fail-closed: do not accept arbitrary property names, value strings, function bodies, variable
-  fallbacks, or unchecked identifier strings.
-- Support custom properties and `var()` as common, first-class CSS features, but keep their names, assigned values,
-  references, and fallbacks typed and validated.
-- Do not add legacy aliases or deprecated properties merely for index completeness.
-- Do not add speech or aural properties, SVG-specific paint properties, or other niche property families without an
-  explicit product requirement.
-- Prefer finishing a supported property's real grammar and its closely related logical/physical family over adding a
-  broad list of property names.
-- Cite the normative specification in the Rustdoc for each property grammar. The Rust property selectors and grammar
-  types are the source of truth; do not maintain a parallel coverage manifest unless it drives generation or tests.
+- Target modern CSS. Coverage of properties is partial on purpose. Never claim that the crate covers every property
+  of CSS.
+- The `Property<T>` constants are the only way to declare a standard property. Do not add a list of property names or
+  a type that holds untyped values.
+- Keep the checked API closed. It must not accept arbitrary property names, value text, function bodies, `var()`
+  fallbacks, or identifiers that were not validated.
+- Custom properties and `var()` are first-class features. Their names, values, references, and fallbacks stay typed
+  and validated.
+- Do not add legacy aliases or deprecated properties only for completeness.
+- Do not add speech properties, SVG paint properties, or other niche families without an explicit need.
+- Prefer completing the grammar of a supported property, and its logical and physical relatives, over adding many
+  new property names.
+- Link the specification in the documentation of each property and grammar. The Rust types are the source of truth.
+  Do not keep a separate coverage list unless it drives generation or tests.
 
 ### Standards baseline
 
-The catalog admits a property only when it is the canonical, non-deprecated name for a general-purpose authoring
-feature and either appears in the [CSS Snapshot 2026 property index](https://www.w3.org/TR/css-2026/#properties) or
-comes from an explicitly selected modern module. The catalog and public value APIs draw on these modern modules:
+The catalog admits a property only if its name is the current, non-deprecated name of a general-purpose feature. The
+property must also appear in the [CSS Snapshot 2026 property index](https://www.w3.org/TR/css-2026/#properties) or
+come from one of these modern modules:
 
-- [CSS Basic User Interface Level 4](https://www.w3.org/TR/css-ui-4/) for `appearance`, `pointer-events`, and
-  `user-select`;
-- [CSS Sizing Level 4](https://www.w3.org/TR/css-sizing-4/) for `aspect-ratio`;
-- [Filter Effects Level 2](https://drafts.csswg.org/filter-effects-2/) for `backdrop-filter`;
+- [CSS Basic User Interface Level 4](https://www.w3.org/TR/css-ui-4/) for `cursor`, `appearance`, `pointer-events`,
+  and `user-select`.
+- [CSS Color Level 4](https://www.w3.org/TR/css-color-4/) and [Level 5](https://www.w3.org/TR/css-color-5/) for the
+  modern color syntax, `oklab()`, `oklch()`, `light-dark()`, and `color-mix()`.
+- [CSS Grid Level 2](https://www.w3.org/TR/css-grid-2/), [CSS Flexbox Level 1](https://www.w3.org/TR/css-flexbox-1/),
+  and [CSS Box Alignment Level 3](https://www.w3.org/TR/css-align-3/) for layout.
+- [CSS Transforms Level 2](https://www.w3.org/TR/css-transforms-2/) for 3D transform functions and the `translate`,
+  `rotate`, and `scale` properties.
+- [CSS Sizing Level 4](https://www.w3.org/TR/css-sizing-4/) for `aspect-ratio`.
+- [Filter Effects Level 2](https://drafts.csswg.org/filter-effects-2/) for `backdrop-filter`.
 - [CSS Overflow Level 3](https://www.w3.org/TR/css-overflow-3/) for `overflow-x`, `overflow-y`, `scroll-behavior`, and
-  `scrollbar-gutter`;
-- [CSS Overscroll Behavior Level 1](https://www.w3.org/TR/css-overscroll-1/) for the `overscroll-behavior` family;
+  `scrollbar-gutter`.
+- [CSS Overscroll Behavior Level 1](https://www.w3.org/TR/css-overscroll-1/) for the `overscroll-behavior` family.
 - [CSS Text Decoration Level 4](https://www.w3.org/TR/css-text-decor-4/) for `text-decoration-skip-ink`,
-  `text-decoration-thickness`, and `text-underline-offset`;
-- [Pointer Events Level 4](https://www.w3.org/TR/pointerevents4/) for `touch-action`;
-- [CSS Values Level 4](https://www.w3.org/TR/css-values-4/) for typed math expressions and modern dimensions;
-- [CSS Environment Variables Level 1](https://www.w3.org/TR/css-env-1/) for typed `env()` expressions;
-- [CSS Custom Properties Level 1](https://www.w3.org/TR/css-variables-1/) for typed custom properties and `var()`; and
+  `text-decoration-thickness`, and `text-underline-offset`.
+- [Pointer Events Level 4](https://www.w3.org/TR/pointerevents4/) for `touch-action`.
+- [CSS Values Level 4](https://www.w3.org/TR/css-values-4/) for math functions and modern units.
+- [CSS Environment Variables Level 1](https://www.w3.org/TR/css-env-1/) for `env()`.
+- [CSS Custom Properties Level 1](https://www.w3.org/TR/css-variables-1/) for custom properties and `var()`.
 - [CSS View Transitions Level 1](https://www.w3.org/TR/css-view-transitions-1/) for `view-transition-name`.
 
-Legacy aliases, speech/aural properties, SVG-specific paint and rendering properties, and other niche families are
-intentionally not targets. Browser support is separate from grammar validity.
+Whether browsers support a property is a separate question from whether its grammar is valid.
+
+## Writing
+
+These rules apply to everything written in the repository: the README, the CHANGELOG, this file, doc comments, and
+code comments.
+
+- Write complete sentences with a subject and a verb, in the active voice. Say who does what.
+- Use one idea per sentence, and split long sentences.
+- Use plain, common words. A reader should understand each sentence on the first read.
+- Name things instead of writing "it" and "its", and avoid chains of possessives.
+- Use connecting words such as "because", "so", and "so that". Use a colon only to introduce a list or an example.
+- Do not use semicolons in prose. Split the sentence or join the parts with a connecting word. Semicolons in code are
+  fine.
+- Documentation describes what the code is and why. It does not describe history, such as what an item replaced. The
+  CHANGELOG is the place for history.
+- Only document what a reader cannot infer from a name. Document units, ranges, the meaning of absent values, and
+  invariants.
+- A doc comment starts with a sentence that says what the item is or does. Keep the examples short and runnable.

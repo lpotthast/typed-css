@@ -1,65 +1,107 @@
 use std::fmt;
 
-use crate::checked_value::impl_checked_value;
-use crate::{
-    LengthPercentageCalculation, NonNegativeLengthPercentage, NonNegativeLengthPercentageValue,
-    serialization::CssWriteTo,
-};
+use crate::NonNegativeLengthPercentage;
+use crate::checked_value::{impl_checked_value, impl_display};
+use crate::custom_property::declaration_sources;
+use crate::length_percentage::length_percentage_sources;
+use crate::property::definition::property_keywords;
+use crate::serialization::{ToCss, write_pair};
 
-/// One component of the `gap`, `row-gap`, or `column-gap` grammar.
+/// A `row-gap` or `column-gap` value, which is also one half of the `gap` shorthand.
 ///
-/// [CSS Box Alignment gap grammar]: https://www.w3.org/TR/css-align-3/#column-row-gap
+/// [CSS Gaps Level 1 `row-gap` and `column-gap`](https://www.w3.org/TR/css-gaps-1/#column-row-gap)
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum GapValue {
-    /// The `normal` keyword.
+    /// The `normal` keyword. It is `0` in flex and grid layouts and `1em` in multi-column layouts.
     Normal,
-    /// A non-negative length or percentage.
-    LengthPercentage(NonNegativeLengthPercentageValue),
+    /// A non-negative length, percentage, or math expression.
+    LengthPercentage(NonNegativeLengthPercentage),
 }
 
-impl From<NonNegativeLengthPercentage> for GapValue {
-    fn from(value: NonNegativeLengthPercentage) -> Self {
-        Self::LengthPercentage(value.into())
-    }
-}
+length_percentage_sources!(@non_negative GapValue, |value| Self::LengthPercentage(value.into()));
 
-impl From<LengthPercentageCalculation> for GapValue {
-    fn from(value: LengthPercentageCalculation) -> Self {
-        Self::LengthPercentage(value.into())
-    }
-}
-
-impl CssWriteTo for GapValue {
-    fn css_fmt<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
+impl ToCss for GapValue {
+    fn to_css<W: fmt::Write>(&self, dest: &mut W) -> fmt::Result {
         match self {
-            Self::Normal => w.write_str("normal"),
-            Self::LengthPercentage(value) => value.css_fmt(w),
+            Self::Normal => dest.write_str("normal"),
+            Self::LengthPercentage(value) => value.to_css(dest),
         }
     }
 }
 
-/// A checked `gap` shorthand value.
+/// A `gap` shorthand value, with a gap between rows and a gap between columns.
+///
+/// ```rust
+/// use typed_css::{Gap, GapValue, px, rem};
+///
+/// assert_eq!(Gap::both(rem(1)).to_string(), "1rem");
+/// assert_eq!(Gap::new(px(8), GapValue::Normal).to_string(), "8px normal");
+/// ```
+///
+/// [CSS Gaps Level 1 `gap`](https://www.w3.org/TR/css-gaps-1/#gap-shorthand)
 #[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum Gap {
-    /// One value for both row and column gaps.
-    One(GapValue),
-    /// Separate row and column gaps.
-    RowColumn(GapValue, GapValue),
+pub struct Gap {
+    row: GapValue,
+    column: GapValue,
 }
 
-impl CssWriteTo for Gap {
-    fn css_fmt<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
-        match self {
-            Self::One(value) => value.css_fmt(w),
-            Self::RowColumn(row, column) => {
-                row.css_fmt(w)?;
-                w.write_char(' ')?;
-                column.css_fmt(w)
-            }
+impl Gap {
+    /// Use one gap between rows and between columns.
+    #[must_use]
+    pub fn both(value: impl Into<GapValue>) -> Self {
+        let value = value.into();
+        Self {
+            row: value.clone(),
+            column: value,
         }
+    }
+
+    /// Use separate gaps between rows and between columns.
+    #[must_use]
+    pub fn new(row: impl Into<GapValue>, column: impl Into<GapValue>) -> Self {
+        Self {
+            row: row.into(),
+            column: column.into(),
+        }
+    }
+
+    /// Replace the gap between rows.
+    #[must_use]
+    pub fn with_row(mut self, value: impl Into<GapValue>) -> Self {
+        self.row = value.into();
+        self
+    }
+
+    /// Replace the gap between columns.
+    #[must_use]
+    pub fn with_column(mut self, value: impl Into<GapValue>) -> Self {
+        self.column = value.into();
+        self
     }
 }
 
+impl From<GapValue> for Gap {
+    fn from(value: GapValue) -> Self {
+        Self::both(value)
+    }
+}
+
+declaration_sources!(Gap: GapValue);
+
+length_percentage_sources!(@non_negative Gap, |value| Self::from(GapValue::from(value)));
+
+impl ToCss for Gap {
+    fn to_css<W: fmt::Write>(&self, dest: &mut W) -> fmt::Result {
+        write_pair(dest, &self.row, &self.column)
+    }
+}
+
+impl_display!(GapValue, Gap);
 impl_checked_value!(GapValue, Gap);
+
+property_keywords! {
+    GapValue, Gap {
+        normal: "normal" => GapValue::Normal,
+    }
+}

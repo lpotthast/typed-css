@@ -1,85 +1,119 @@
+// The README's Leptos example is marked `ignore`, because it needs the `leptos` feature. The test
+// `readme_example_compiles` in `tests/direct_leptos.rs` compiles the same code.
 #![doc = include_str!("../README.md")]
 
+mod alignment;
 mod angle;
+mod auto;
 mod box_model;
 mod checked_value;
 mod color;
 mod color_adjust;
 mod custom_property;
 mod declaration;
-mod dimension;
+mod display;
+mod flexbox;
 mod gap;
 mod global_keyword;
+mod grid;
 mod identifier;
 mod length;
+mod length_percentage;
 mod number;
 mod opacity;
-/// Canonical property names and grammar-checked declaration selectors.
+mod overflow;
+mod percentage;
+mod position;
 pub mod property;
+mod property_name;
 mod serialization;
 mod sizing;
 mod stacking;
+mod text;
+mod text_decoration;
 mod time;
 mod touch_action;
+mod transform;
 mod typography;
-mod value;
+mod user_interface;
 mod view_transition;
 
-pub use angle::CssAngle;
-pub use box_model::{
-    BorderCornerRadius, Inset, InsetAxis, InvalidNonNegativeLengthPercentage, Margin, MarginAxis,
-    NonNegativeLengthPercentage, NonNegativeLengthPercentageValue, Padding, PaddingAxis,
+pub use alignment::{
+    AlignContent, AlignItems, AlignSelf, BaselinePosition, ContentDistribution, ContentPosition,
+    JustifyContent, JustifyItems, JustifySelf, LegacyPosition, OverflowAlignment, OverflowPosition,
+    PhysicalPosition, PlaceContent, PlaceItems, PlaceSelf, SelfPosition,
 };
-pub use checked_value::CheckedCssValue;
-pub use color::{CssColor, CssColorName, hsl, hsla, rgb, rgba, try_hsl, try_hsla, try_rgba};
+pub use angle::{Angle, deg, grad, rad, turn};
+pub use auto::Auto;
+pub use box_model::{
+    BorderRadius, CornerRadius, Inset, InsetAxis, Margin, MarginAxis, Padding, PaddingAxis,
+};
+pub use checked_value::CheckedValue;
+pub use color::{
+    Color, ColorMix, ColorSpace, NamedColor, SystemColor, color_mix, color_mix_weighted, hex, hsl,
+    hsla, hwb, light_dark, oklab, oklch, rgb, rgba,
+};
 pub use color_adjust::{ForcedColorAdjust, PrintColorAdjust};
 pub use custom_property::{
-    CssCustomProperty, CssVariableReference, DeclarationValue, InvalidCustomPropertyName, var,
+    CustomProperty, DeclarationValue, InvalidCustomPropertyName, Var, var, var_or,
 };
-pub use declaration::CheckedDeclaration;
-pub use dimension::{
-    CssDimension, CssDimensionExpr, CssEnvironmentVariable, LengthPercentageAuto,
-    LengthPercentageCalculation, ch, cqh, cqw, css_clamp, css_env, css_max, css_min, dvh, dvw, em,
-    lvh, lvw, pct, px, rem, svh, svw, try_ch, try_cqh, try_cqw, try_dvh, try_dvw, try_em, try_lvh,
-    try_lvw, try_pct, try_px, try_rem, try_svh, try_svw, try_vh, try_vmax, try_vmin, try_vw, vh,
-    vmax, vmin, vw,
-};
+pub use declaration::Declaration;
+pub use display::{Display, Visibility};
+pub use flexbox::{Flex, FlexBasis, FlexDirection, FlexFlow, FlexWrap};
 pub use gap::{Gap, GapValue};
-pub use global_keyword::GlobalKeyword;
-pub use length::CssLength;
-pub use number::{
-    FiniteF64, InvalidCssNumber, NonNegativeFiniteF64, PercentageChannel, UnitInterval,
+pub use global_keyword::{GlobalKeyword, GlobalKeywordsOnly};
+pub use grid::{
+    GridAutoFlow, GridAutoTracks, GridLine, GridLineRange, GridRepeat, GridTemplate, GridTrack,
+    InflexibleBreadth, InvalidGridLine, InvalidGridTracks, RepeatCount, TrackBreadth, TrackSize,
+    fr,
 };
+pub use length::{
+    Length, ch, cqb, cqh, cqi, cqmax, cqmin, cqw, dvh, dvw, em, ex, lh, lvh, lvw, pt, px, rem, rlh,
+    svh, svw, vh, vmax, vmin, vw,
+};
+pub use length_percentage::{
+    EnvironmentVariable, LengthPercentage, LengthPercentageAuto, NonNegativeLengthPercentage,
+    clamp, env, max, min,
+};
+pub use number::{InvalidNumber, NonNegativeNumber, Number, PercentageChannel, UnitInterval};
 pub use opacity::Opacity;
-pub use property::PropertyName;
-pub use serialization::CssWriteTo;
-pub use sizing::{MaxSize, Size};
+pub use overflow::{
+    Overflow, OverflowKeyword, OverscrollBehavior, OverscrollKeyword, ScrollBehavior,
+    ScrollbarGutter,
+};
+pub use percentage::{Percentage, pct};
+pub use position::Position;
+pub use property::definition::Property;
+pub use serialization::ToCss;
+pub use sizing::{AspectRatio, BoxSizing, MaxSize, Size};
 pub use stacking::ZIndex;
-pub use time::CssTime;
+pub use text::TextAlign;
+pub use text_decoration::{
+    TextDecorationLine, TextDecorationLines, TextDecorationStyle, TextDecorationThickness,
+    TextUnderlineOffset,
+};
+pub use time::{Time, ms, s};
 pub use touch_action::{
     TouchAction, TouchActionGestures, TouchActionHorizontalPan, TouchActionVerticalPan,
 };
-pub use typography::FontWeight;
-pub use value::{
-    CssValue, deg, fr, grad, ms, number, rad, s, try_deg, try_fr, try_grad, try_ms, try_number,
-    try_rad, try_s, try_turn, turn,
-};
+pub use transform::{Rotate, Scale, Transform, TransformFunction, Translate};
+pub use typography::{FontSize, FontStyle, FontWeight, FontWeightNumber, LineHeight, ObliqueAngle};
+pub use user_interface::{Cursor, PointerEvents, UserSelect};
 pub use view_transition::{InvalidViewTransitionName, ViewTransitionName};
 
-/// Compile-time assertions that the typed CSS surface is `Send + Sync`. Both
-/// `CssValue`, `PropertyName`, and checked declarations flow through Leptos component props and reactive
-/// signals, so weakening either bound would surface at every downstream
-/// consumer. Catch the regression at the crate boundary instead.
+// Values, properties, and declarations are passed between threads, for example in the props and
+// signals of UI frameworks. These assertions make a change that loses `Send` or `Sync` fail here.
 const _: () = {
     const fn assert_send_sync<T: Send + Sync>() {}
-    assert_send_sync::<CssValue>();
-    assert_send_sync::<CssDimensionExpr>();
-    assert_send_sync::<CssCustomProperty<CssColor>>();
-    assert_send_sync::<DeclarationValue<CssColor>>();
+    assert_send_sync::<LengthPercentage>();
+    assert_send_sync::<Color>();
+    assert_send_sync::<CustomProperty<Color>>();
+    assert_send_sync::<DeclarationValue<Color>>();
     assert_send_sync::<Padding>();
-    assert_send_sync::<Inset>();
     assert_send_sync::<ViewTransitionName>();
     assert_send_sync::<TouchAction>();
-    assert_send_sync::<PropertyName>();
-    assert_send_sync::<CheckedDeclaration>();
+    assert_send_sync::<Transform>();
+    assert_send_sync::<GridTemplate>();
+    assert_send_sync::<Property<Size>>();
+    assert_send_sync::<Declaration>();
 };

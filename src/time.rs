@@ -1,36 +1,29 @@
-use std::fmt;
+use crate::number::{dimension, unit_functions};
 
-use crate::checked_value::impl_checked_value;
-use crate::{FiniteF64, serialization::CssWriteTo};
-
-/// CSS time values.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum CssTime {
-    /// Seconds.
-    S(FiniteF64),
-    /// Milliseconds.
-    Ms(FiniteF64),
+dimension! {
+    /// A CSS `<time>` with its unit.
+    ///
+    /// The helpers [`s`] and [`ms`] create times. No property in this crate takes a time, but a
+    /// custom property can hold one for a stylesheet to use:
+    ///
+    /// ```rust
+    /// use typed_css::{Time, custom_property, ms};
+    ///
+    /// // A stylesheet can use `transition-duration: var(--fade-duration)`.
+    /// custom_property!(FADE_DURATION: Time = "--fade-duration");
+    /// assert_eq!(FADE_DURATION.declare(ms(150)).to_string(), "--fade-duration:150ms;");
+    /// ```
+    ///
+    /// [CSS Values Level 4 time units](https://www.w3.org/TR/css-values-4/#time)
+    pub struct Time(TimeUnit), "a time";
+    S => s, try_s, "s";
+    Ms => ms, try_ms, "ms";
 }
 
-impl CssWriteTo for CssTime {
-    fn css_fmt<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
-        match self {
-            Self::S(v) => write!(w, "{v}s"),
-            Self::Ms(v) => write!(w, "{v}ms"),
-        }
-    }
+unit_functions! {
+    Time;
+    /// Create a time in seconds.
+    s, try_s;
+    /// Create a time in milliseconds.
+    ms, try_ms;
 }
-
-impl std::ops::Neg for CssTime {
-    type Output = Self;
-
-    fn neg(self) -> Self {
-        match self {
-            Self::S(v) => Self::S(-v),
-            Self::Ms(v) => Self::Ms(-v),
-        }
-    }
-}
-
-impl_checked_value!(CssTime);

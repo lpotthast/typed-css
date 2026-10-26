@@ -1,17 +1,17 @@
 [package]
-name = "leptos-css"
-version = "0.1.1"
+name = "typed-css"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.89.0"
 authors = ["Lukas Potthast <privat@lukas-potthast.de>"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/lpotthast/leptos-css"
-homepage = "https://github.com/lpotthast/leptos-css"
-documentation = "https://docs.rs/leptos-css"
-description = "Typed CSS values, dimensions, and property names for Leptos"
+repository = "https://github.com/lpotthast/typed-css"
+homepage = "https://github.com/lpotthast/typed-css"
+documentation = "https://docs.rs/typed-css"
+description = "Typed, grammar-checked CSS values and declarations"
 categories = ["web-programming", "gui", "wasm"]
-keywords = ["leptos", "css", "typed", "values", "properties"]
+keywords = ["css", "typed", "style", "declarations", "leptos"]
 exclude = [
     "/.codegraph/**",
     "/.cargo/**",
@@ -22,36 +22,28 @@ exclude = [
 ]
 
 [package.metadata.docs.rs]
+all-features = true
 targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 
 [features]
 default = []
-# Forwards to `leptos/nightly`. Kept in lockstep with `leptos-styles` so a parent
-# crate enabling `nightly` propagates the flag uniformly across both crates.
-nightly = ["leptos/nightly"]
+# Lets a `Declaration` render directly as a Leptos style attribute.
+leptos = ["dep:leptos"]
 
 [dependencies]
-leptos = { version = "0.8.19", default-features = false }
+leptos = { version = "0.8.22", default-features = false, optional = true }
 
 [dev-dependencies]
-assertr = { version = "0.6.0" }
+assertr = { version = "0.9.1" }
+
+[[test]]
+name = "direct_leptos"
+path = "tests/direct_leptos.rs"
+required-features = ["leptos"]
 
 [lints.rust]
 missing_docs = "warn"
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(web_sys_unstable_apis)'] }
 
 [lints.clippy]
 all = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
-doc_markdown = { level = "allow", priority = 1 }
-float_cmp = { level = "allow", priority = 1 }
-missing_errors_doc = { level = "allow", priority = 1 }
-missing_panics_doc = { level = "allow", priority = 1 }
-module_name_repetitions = { level = "allow", priority = 1 }
-must_use_candidate = { level = "allow", priority = 1 }
-needless_pass_by_value = { level = "allow", priority = 1 }
-option_if_let_else = { level = "allow", priority = 1 }
-similar_names = { level = "allow", priority = 1 }
-too_many_lines = { level = "allow", priority = 1 }
-used_underscore_binding = { level = "allow", priority = 1 }
-wildcard_imports = { level = "allow", priority = 1 }

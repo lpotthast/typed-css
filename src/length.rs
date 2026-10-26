@@ -1,147 +1,115 @@
-use std::fmt;
+use crate::number::{dimension, unit_functions};
 
-use crate::checked_value::impl_checked_value;
-use crate::{FiniteF64, InvalidCssNumber, serialization::CssWriteTo};
-
-/// CSS length values with absolute and relative units.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum CssLength {
-    /// Pixels.
-    Px(FiniteF64),
-    /// Em units (relative to element font size).
-    Em(FiniteF64),
-    /// Rem units (relative to root font size).
-    Rem(FiniteF64),
-    /// Viewport width units.
-    Vw(FiniteF64),
-    /// Viewport height units.
-    Vh(FiniteF64),
-    /// Viewport minimum dimension units.
-    Vmin(FiniteF64),
-    /// Viewport maximum dimension units.
-    Vmax(FiniteF64),
-    /// Character width units (width of the `0` glyph in the element's font).
-    Ch(FiniteF64),
-    /// Dynamic viewport width units (1dvw = 1% of the dynamic viewport width).
-    /// Unlike `vw`, adjusts when browser UI elements (e.g. mobile address bar) appear or disappear.
-    Dvw(FiniteF64),
-    /// Dynamic viewport height units (1dvh = 1% of the dynamic viewport height).
-    /// Unlike `vh`, adjusts when browser UI elements (e.g. mobile address bar) appear or disappear.
-    Dvh(FiniteF64),
-    /// Small viewport width units (1svw = 1% of the smallest possible viewport width).
-    /// Represents the viewport size when all dynamic browser UI is expanded/visible.
-    Svw(FiniteF64),
-    /// Small viewport height units (1svh = 1% of the smallest possible viewport height).
-    /// Represents the viewport size when all dynamic browser UI is expanded/visible.
-    Svh(FiniteF64),
-    /// Large viewport width units (1lvw = 1% of the largest possible viewport width).
-    /// Represents the viewport size when all dynamic browser UI is retracted/hidden.
-    Lvw(FiniteF64),
-    /// Large viewport height units (1lvh = 1% of the largest possible viewport height).
-    /// Represents the viewport size when all dynamic browser UI is retracted/hidden.
-    Lvh(FiniteF64),
-    /// Container query width units (1cqw = 1% of the nearest size container's width).
-    /// Used with CSS container queries (`@container`).
-    Cqw(FiniteF64),
-    /// Container query height units (1cqh = 1% of the nearest size container's height).
-    /// Used with CSS container queries (`@container`).
-    Cqh(FiniteF64),
+dimension! {
+    /// A CSS `<length>` with its unit.
+    ///
+    /// The unit helpers such as [`px`] and [`rem`] create lengths. Most size properties accept a
+    /// length, a percentage, or a calculation of both, which
+    /// [`LengthPercentage`](crate::LengthPercentage) describes. A `Length` converts into a
+    /// `LengthPercentage`, so those properties accept it directly. Adding or subtracting lengths
+    /// also creates a `LengthPercentage`.
+    ///
+    /// [CSS Values Level 4 lengths](https://www.w3.org/TR/css-values-4/#lengths)
+    pub struct Length(LengthUnit), "a length";
+    Px => px, try_px, "px";
+    /// The unit is the element's font size. Inside `font-size`, it is the parent's font size.
+    Em => em, try_em, "em";
+    /// The unit is the root element's font size.
+    Rem => rem, try_rem, "rem";
+    /// The unit is 1% of the viewport width.
+    Vw => vw, try_vw, "vw";
+    /// The unit is 1% of the viewport height.
+    Vh => vh, try_vh, "vh";
+    /// The unit is 1% of the smaller viewport dimension.
+    Vmin => vmin, try_vmin, "vmin";
+    /// The unit is 1% of the larger viewport dimension.
+    Vmax => vmax, try_vmax, "vmax";
+    /// The unit is the width of the `0` glyph in the element's font.
+    Ch => ch, try_ch, "ch";
+    /// The unit is 1% of the dynamic viewport width, which changes as browser UI such as an
+    /// address bar appears or disappears.
+    Dvw => dvw, try_dvw, "dvw";
+    /// The unit is 1% of the dynamic viewport height, which changes as browser UI such as an
+    /// address bar appears or disappears.
+    Dvh => dvh, try_dvh, "dvh";
+    /// The unit is 1% of the small viewport width, measured with all browser UI expanded.
+    Svw => svw, try_svw, "svw";
+    /// The unit is 1% of the small viewport height, measured with all browser UI expanded.
+    Svh => svh, try_svh, "svh";
+    /// The unit is 1% of the large viewport width, measured with all browser UI retracted.
+    Lvw => lvw, try_lvw, "lvw";
+    /// The unit is 1% of the large viewport height, measured with all browser UI retracted.
+    Lvh => lvh, try_lvh, "lvh";
+    /// The unit is 1% of the width of the nearest size container.
+    Cqw => cqw, try_cqw, "cqw";
+    /// The unit is 1% of the height of the nearest size container.
+    Cqh => cqh, try_cqh, "cqh";
+    /// One point is 1/72 of an inch, or 4/3 of a pixel.
+    Pt => pt, try_pt, "pt";
+    /// The unit is the x-height of the element's font.
+    Ex => ex, try_ex, "ex";
+    /// The unit is the element's line height.
+    Lh => lh, try_lh, "lh";
+    /// The unit is the root element's line height.
+    Rlh => rlh, try_rlh, "rlh";
+    /// The unit is 1% of the inline size of the nearest size container.
+    Cqi => cqi, try_cqi, "cqi";
+    /// The unit is 1% of the block size of the nearest size container.
+    Cqb => cqb, try_cqb, "cqb";
+    /// The unit is 1% of the smaller dimension of the nearest size container.
+    Cqmin => cqmin, try_cqmin, "cqmin";
+    /// The unit is 1% of the larger dimension of the nearest size container.
+    Cqmax => cqmax, try_cqmax, "cqmax";
 }
 
-impl CssLength {
-    /// Returns the inner numeric value regardless of unit.
-    pub fn value(self) -> f64 {
-        match self {
-            Self::Px(v)
-            | Self::Em(v)
-            | Self::Rem(v)
-            | Self::Vw(v)
-            | Self::Vh(v)
-            | Self::Vmin(v)
-            | Self::Vmax(v)
-            | Self::Ch(v)
-            | Self::Dvw(v)
-            | Self::Dvh(v)
-            | Self::Svw(v)
-            | Self::Svh(v)
-            | Self::Lvw(v)
-            | Self::Lvh(v)
-            | Self::Cqw(v)
-            | Self::Cqh(v) => v.get(),
-        }
-    }
-
-    /// Attempt to transform the value while preserving its unit and the finite-value invariant.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`InvalidCssNumber::NonFinite`] if `f` produces `NaN` or infinity.
-    pub fn try_map_value(self, f: impl FnOnce(f64) -> f64) -> Result<Self, InvalidCssNumber> {
-        let mapped = FiniteF64::try_new(f(self.value()))?;
-        Ok(match self {
-            Self::Px(_) => Self::Px(mapped),
-            Self::Em(_) => Self::Em(mapped),
-            Self::Rem(_) => Self::Rem(mapped),
-            Self::Vw(_) => Self::Vw(mapped),
-            Self::Vh(_) => Self::Vh(mapped),
-            Self::Vmin(_) => Self::Vmin(mapped),
-            Self::Vmax(_) => Self::Vmax(mapped),
-            Self::Ch(_) => Self::Ch(mapped),
-            Self::Dvw(_) => Self::Dvw(mapped),
-            Self::Dvh(_) => Self::Dvh(mapped),
-            Self::Svw(_) => Self::Svw(mapped),
-            Self::Svh(_) => Self::Svh(mapped),
-            Self::Lvw(_) => Self::Lvw(mapped),
-            Self::Lvh(_) => Self::Lvh(mapped),
-            Self::Cqw(_) => Self::Cqw(mapped),
-            Self::Cqh(_) => Self::Cqh(mapped),
-        })
-    }
-
-    /// Transform the value while preserving its unit.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `f` produces `NaN` or infinity. Use [`CssLength::try_map_value`] when the
-    /// transformed value can be invalid at runtime.
-    #[must_use]
-    #[track_caller]
-    pub fn map_value(self, f: impl FnOnce(f64) -> f64) -> Self {
-        self.try_map_value(f)
-            .unwrap_or_else(|error| panic!("{error}"))
-    }
+unit_functions! {
+    Length;
+    /// Create a length in pixels.
+    px, try_px;
+    /// Create a length relative to the element's font size.
+    em, try_em;
+    /// Create a length relative to the root element's font size.
+    rem, try_rem;
+    /// Create a length in percent of the viewport width.
+    vw, try_vw;
+    /// Create a length in percent of the viewport height.
+    vh, try_vh;
+    /// Create a length in percent of the smaller viewport dimension.
+    vmin, try_vmin;
+    /// Create a length in percent of the larger viewport dimension.
+    vmax, try_vmax;
+    /// Create a length in widths of the `0` glyph in the element's font.
+    ch, try_ch;
+    /// Create a length in percent of the dynamic viewport width.
+    dvw, try_dvw;
+    /// Create a length in percent of the dynamic viewport height.
+    dvh, try_dvh;
+    /// Create a length in percent of the small viewport width.
+    svw, try_svw;
+    /// Create a length in percent of the small viewport height.
+    svh, try_svh;
+    /// Create a length in percent of the large viewport width.
+    lvw, try_lvw;
+    /// Create a length in percent of the large viewport height.
+    lvh, try_lvh;
+    /// Create a length in percent of the nearest size container's width.
+    cqw, try_cqw;
+    /// Create a length in percent of the nearest size container's height.
+    cqh, try_cqh;
+    /// Create a length in points. One point is 1/72 of an inch.
+    pt, try_pt;
+    /// Create a length relative to the x-height of the element's font.
+    ex, try_ex;
+    /// Create a length relative to the element's line height.
+    lh, try_lh;
+    /// Create a length relative to the root element's line height.
+    rlh, try_rlh;
+    /// Create a length in percent of the nearest size container's inline size.
+    cqi, try_cqi;
+    /// Create a length in percent of the nearest size container's block size.
+    cqb, try_cqb;
+    /// Create a length in percent of the smaller dimension of the nearest size container.
+    cqmin, try_cqmin;
+    /// Create a length in percent of the larger dimension of the nearest size container.
+    cqmax, try_cqmax;
 }
-
-impl CssWriteTo for CssLength {
-    fn css_fmt<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
-        match self {
-            Self::Px(v) => write!(w, "{v}px"),
-            Self::Em(v) => write!(w, "{v}em"),
-            Self::Rem(v) => write!(w, "{v}rem"),
-            Self::Vw(v) => write!(w, "{v}vw"),
-            Self::Vh(v) => write!(w, "{v}vh"),
-            Self::Vmin(v) => write!(w, "{v}vmin"),
-            Self::Vmax(v) => write!(w, "{v}vmax"),
-            Self::Ch(v) => write!(w, "{v}ch"),
-            Self::Dvw(v) => write!(w, "{v}dvw"),
-            Self::Dvh(v) => write!(w, "{v}dvh"),
-            Self::Svw(v) => write!(w, "{v}svw"),
-            Self::Svh(v) => write!(w, "{v}svh"),
-            Self::Lvw(v) => write!(w, "{v}lvw"),
-            Self::Lvh(v) => write!(w, "{v}lvh"),
-            Self::Cqw(v) => write!(w, "{v}cqw"),
-            Self::Cqh(v) => write!(w, "{v}cqh"),
-        }
-    }
-}
-
-impl std::ops::Neg for CssLength {
-    type Output = Self;
-
-    fn neg(self) -> Self {
-        self.map_value(|v| -v)
-    }
-}
-
-impl_checked_value!(CssLength);

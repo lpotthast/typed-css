@@ -1,49 +1,33 @@
-pub(crate) const fn is_ascii_letter(byte: u8) -> bool {
-    (byte >= b'a' && byte <= b'z') || (byte >= b'A' && byte <= b'Z')
+//! The identifiers that this crate accepts, which never need escaping in CSS.
+
+const fn is_name_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'
 }
 
+const fn are_name_bytes(bytes: &[u8], start: usize) -> bool {
+    let mut index = start;
+    while index < bytes.len() {
+        if !is_name_byte(bytes[index]) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+/// Return whether `identifier` starts with an ASCII letter or `_` and continues with ASCII letters,
+/// digits, `-`, or `_`.
 pub(crate) const fn is_checked_identifier(identifier: &str) -> bool {
     let bytes = identifier.as_bytes();
-    if bytes.is_empty() {
-        return false;
-    }
-    if !is_ascii_letter(bytes[0]) && bytes[0] != b'_' {
-        return false;
-    }
-    let mut index = 1;
-    while index < bytes.len() {
-        let byte = bytes[index];
-        if !(is_ascii_letter(byte)
-            || (byte >= b'0' && byte <= b'9')
-            || byte == b'-'
-            || byte == b'_')
-        {
-            return false;
-        }
-        index += 1;
-    }
-    true
+    !bytes.is_empty()
+        && (bytes[0].is_ascii_alphabetic() || bytes[0] == b'_')
+        && are_name_bytes(bytes, 1)
 }
 
+/// Return whether `name` is `--` followed by at least one ASCII letter, digit, `-`, or `_`.
+///
+/// CSS reserves the name `--` alone.
 pub(crate) const fn is_checked_custom_property_name(name: &str) -> bool {
     let bytes = name.as_bytes();
-    if bytes.len() < 3 || bytes[0] != b'-' || bytes[1] != b'-' {
-        return false;
-    }
-    if !is_ascii_letter(bytes[2]) && bytes[2] != b'_' {
-        return false;
-    }
-    let mut index = 3;
-    while index < bytes.len() {
-        let byte = bytes[index];
-        if !(is_ascii_letter(byte)
-            || (byte >= b'0' && byte <= b'9')
-            || byte == b'-'
-            || byte == b'_')
-        {
-            return false;
-        }
-        index += 1;
-    }
-    true
+    bytes.len() > 2 && bytes[0] == b'-' && bytes[1] == b'-' && are_name_bytes(bytes, 2)
 }

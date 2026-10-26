@@ -1,51 +1,34 @@
-use std::fmt;
+use crate::auto::auto_sources;
+use crate::checked_value::{impl_checked_value, keyword_enum};
 
-use crate::checked_value::impl_checked_value;
-use crate::serialization::CssWriteTo;
-
-/// Values for the modern `forced-color-adjust` property.
-///
-/// [CSS Color Adjustment § 3.2]: https://www.w3.org/TR/css-color-adjust-1/#forced-color-adjust-prop
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum ForcedColorAdjust {
-    /// Allow the user agent to adjust colors in forced-colors mode.
-    Auto,
-    /// Prevent automatic color adjustment.
-    None,
-    /// Preserve the parent's used color while otherwise behaving like `none`.
-    PreserveParentColor,
-}
-
-impl CssWriteTo for ForcedColorAdjust {
-    fn css_fmt<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
-        w.write_str(match self {
-            Self::Auto => "auto",
-            Self::None => "none",
-            Self::PreserveParentColor => "preserve-parent-color",
-        })
+keyword_enum! {
+    /// A `forced-color-adjust` value, which says whether the browser may replace the colors of an
+    /// element in forced-colors mode, such as a high-contrast theme.
+    ///
+    /// [CSS Color Adjustment Level 1 `forced-color-adjust`](https://www.w3.org/TR/css-color-adjust-1/#forced-color-adjust-prop)
+    pub enum ForcedColorAdjust {
+        /// The browser may replace the colors.
+        Auto => "auto" as auto,
+        /// The browser keeps the colors.
+        None => "none" as none,
+        /// The element keeps the color of its parent and otherwise behaves like `none`.
+        PreserveParentColor => "preserve-parent-color" as preserve_parent_color,
     }
 }
 
-/// Values for the modern `print-color-adjust` property.
-///
-/// [CSS Color Adjustment § 4.1]: https://www.w3.org/TR/css-color-adjust-1/#print-color-adjust
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum PrintColorAdjust {
-    /// Allow output-device economy adjustments.
-    Economy,
-    /// Preserve the specified colors and styling where possible.
-    Exact,
-}
-
-impl CssWriteTo for PrintColorAdjust {
-    fn css_fmt<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
-        w.write_str(match self {
-            Self::Economy => "economy",
-            Self::Exact => "exact",
-        })
+keyword_enum! {
+    /// A `print-color-adjust` value, which says whether the browser may change colors and
+    /// backgrounds to save ink when it prints.
+    ///
+    /// [CSS Color Adjustment Level 1 `print-color-adjust`](https://www.w3.org/TR/css-color-adjust-1/#print-color-adjust)
+    pub enum PrintColorAdjust {
+        /// The browser may change colors and drop backgrounds.
+        Economy => "economy" as economy,
+        /// The browser keeps the colors and backgrounds as specified.
+        Exact => "exact" as exact,
     }
 }
+
+auto_sources!(ForcedColorAdjust => Self::Auto);
 
 impl_checked_value!(ForcedColorAdjust, PrintColorAdjust);
