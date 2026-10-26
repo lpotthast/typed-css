@@ -13,7 +13,6 @@ description = "Typed, grammar-checked CSS values and declarations"
 categories = ["web-programming", "gui", "wasm"]
 keywords = ["css", "typed", "style", "declarations", "leptos"]
 exclude = [
-    "/.codegraph/**",
     "/.cargo/**",
     "/.github/**",
     "/.idea/**",
